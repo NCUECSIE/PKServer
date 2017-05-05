@@ -1,39 +1,28 @@
+import MongoKitten
 import Kitura
 import HeliumLogger
 
-import MongoKitten
-
 HeliumLogger.use()
 
-// Create a new router
+let MONGO_HOST = "127.0.0.1"
+let MONGO_PORT = 32769 as UInt16
+let MONGO_COLLECTION = "parking"
+
+let mongodbSettings = ClientSettings(host: MongoHost(hostname: MONGO_HOST, port: MONGO_PORT), sslSettings: nil, credentials: nil)
+let resourceManager = PKResourceManager(mongoClientSettings: mongodbSettings, collectionName: MONGO_COLLECTION)
 let router = Router()
 
-struct TestError: Error {
-    
-}
-
-// Handle HTTP GET requests to /
-router.get("/") {
-    request, response, next in
-    throw TestError()
-    //response.send("Hello, World!")
-    
-    // next()
-}
+router.all(middleware: resourceManager!)
+router.get("stats", allowPartialMatch: false, middleware: statsRouter())
 
 router.error() {
     request, response, next in
-    response.status(.internalServerError).send("Internal Server Error")
+    guard let error = response.error as? PKServerError else {
+        response.status(.internalServerError).send(json: ["error": "Unknown error."])
+        return
+    }
+    response.status(error.response.0).send(json: ["error": error.response.1])
 }
 
-// Add an HTTP server and connect it to the router
 Kitura.addHTTPServer(onPort: 8080, with: router)
-
-// Start the Kitura runloop (this call never returns)
-// Kitura.run()
-
-testMongoKitten()
-
-let collection: MongoKitten.Collection!
-let document = [ "a" : "b" ]
-collection.insert(Document(document)!)
+Kitura.run()
