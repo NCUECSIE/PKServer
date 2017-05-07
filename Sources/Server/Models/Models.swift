@@ -1,5 +1,6 @@
 import Foundation
 import MongoKitten
+import AutoSerialization
 
 /// 表示文件的來源
 enum PKDocumentSource {
@@ -19,8 +20,8 @@ enum PKDocumentCleaness {
     case dirty
 }
 
-struct PKAutoSerializableDocument {
-    var __source: PKDocumentSource
-    var __cleaness: PKDocumentCleaness
-    var _id: ObjectId?
+protocol PKModel: PKObjectReflectionSerializable {
+    var __source: PKDocumentSource { get }
+    var __cleaness: PKDocumentCleaness { get }
+    var _id: ObjectId? { get }
 }

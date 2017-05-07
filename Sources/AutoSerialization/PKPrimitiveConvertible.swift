@@ -1,15 +1,19 @@
 import BSON
 import MongoKitten
 
-protocol PKPrimitiveConvertible: Primitive {
+public protocol PKPrimitiveConvertible: Primitive {
     func serialize() throws -> Primitive
-    static func deserialize(doc: Primitive) -> Self?
+    static func deserialize(from: Primitive) -> Self?
 }
-extension PKPrimitiveConvertible {
+public extension PKPrimitiveConvertible {
+    public var typeIdentifier: Byte {
+        guard let serialized = try? serialize() else { fatalError() }
+        return serialized.typeIdentifier
+    }
     func makeBinary() -> Bytes {
         guard let serialized = try? serialize() else {
             fatalError("Bad values in your PKReflectionSerializable data.")
         }
-        return Document(serialized)!.makeBinary()
+        return Document(data: serialized.makeBinary()).makeBinary()
     }
 }

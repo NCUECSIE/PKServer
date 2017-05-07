@@ -1,4 +1,5 @@
 import XCTest
+import MongoKitten
 import BSON
 @testable import AutoSerialization
 
@@ -50,38 +51,30 @@ class PKSerializableTests: XCTestCase {
             XCTFail()
             return
         }
-        XCTAssertNotNil(x as? [String: Primitive])
-        XCTAssertNotNil((x as! [String: Primitive])["case"])
-        XCTAssertNotNil((x as! [String: Primitive])["case"]! as? Int)
-        XCTAssertEqual((x as! [String: Primitive])["case"]! as! Int, 1)
+        XCTAssertNotNil(x as? Int)
+        XCTAssertEqual(x as! Int, 1)
         
         guard let y = try? TestIntRawEnum.y.serialize() else {
             XCTFail()
             return
         }
-        XCTAssertNotNil(y as? [String: Primitive])
-        XCTAssertNotNil((y as! [String: Primitive])["case"])
-        XCTAssertNotNil((y as! [String: Primitive])["case"]! as? Int)
-        XCTAssertEqual((y as! [String: Primitive])["case"]! as! Int, 2)
+        XCTAssertNotNil(y as? Int)
+        XCTAssertEqual(y as! Int, 2)
     }
     func testStringRawEnum() {
         guard let x = try? TestStringRawEnum.x.serialize() else {
             XCTFail()
             return
         }
-        XCTAssertNotNil(x as? [String: Primitive])
-        XCTAssertNotNil((x as! [String: Primitive])["case"])
-        XCTAssertNotNil((x as! [String: Primitive])["case"]! as? String)
-        XCTAssertEqual((x as! [String: Primitive])["case"]! as! String, "read")
+        XCTAssertNotNil(x as? String)
+        XCTAssertEqual(x as! String, "read")
         
         guard let y = try? TestStringRawEnum.y.serialize() else {
             XCTFail()
             return
         }
-        XCTAssertNotNil(y as? [String: Primitive])
-        XCTAssertNotNil((y as! [String: Primitive])["case"])
-        XCTAssertNotNil((y as! [String: Primitive])["case"]! as? String)
-        XCTAssertEqual((y as! [String: Primitive])["case"]! as! String, "write")
+        XCTAssertNotNil(y as? String)
+        XCTAssertEqual(y as! String, "write")
     }
     func testAssociatedEnum() {
         guard let x = try? TestAssociatedEnum.x(1, 2).serialize() else {
@@ -182,8 +175,7 @@ class PKSerializableTests: XCTestCase {
         let binary = serialized.makeBinary()
         let doc = Document(data: binary)
         
-        let s = TestStruct.deserialize(doc: doc)
-        
+        XCTAssertNotNil(TestStruct.deserialize(from: doc))
     }
     
 }
@@ -199,37 +191,31 @@ fileprivate struct TestStruct: PKObjectReflectionSerializable {
     var var8 = [
         "A": [1, 2],
         "B": [ "A": 1, "B": "C" ]
-        ] as [String : Any]
+        ] as [String : Primitive]
     var var9 = true
     var var10 = TestAssociatedEnum.y("A", 1)
     
-    static func deserialize(doc: Primitive) -> TestStruct? {
-        guard let serialized = doc as? Document else { return nil }
-        guard let v1 = serialized["var1"] as? String else { return nil }
-        guard let v2 = serialized["var2"] as? String else { return nil }
-        guard let v3 = serialized["var3"] as? Int else { return nil }
-        guard let v4 = serialized["var4"] as? Double else { return nil }
-        guard let _v5 = serialized["var5"] as? Document else { return nil }
-        guard let _v6 = serialized["var6"] as? Document else { return nil }
-        guard let _v7 = serialized["var7"] as? Document else { return nil }
-        guard let _v8 = serialized["var8"] as? Document else { return nil }
-        guard let v9 = serialized["var9"] as? Bool else { return nil }
-        guard let v10 = serialized["var10"] else { return nil }
+    static func deserialize(from primitive: Primitive) -> TestStruct? {
+        guard let serialized = primitive.to(Document.self) else { return nil }
+        guard let v1 = serialized["var1"]?.to(String.self) else { return nil }
+        guard let v2 = serialized["var2"]?.to(String.self) else { return nil }
+        guard let v3 = serialized["var3"]?.to(Int.self) else { return nil }
+        guard let v4 = serialized["var4"]?.to(Double.self) else { return nil }
+        guard let v5 = serialized["var5"]?.toArray(typed: Int.self) else { return nil }
+        guard let v6 = serialized["var6"]?.to(Document.self)?.dictionaryValue as? [String: Int] else { return nil }
+        guard let _v7 = serialized["var7"]?.toArray(count: 6) else { return nil }
+        guard let v8 = serialized["var8"]?.to(Document.self)?.dictionaryValue else { return nil }
+        guard let v9 = serialized["var9"]?.to(Bool.self) else { return nil }
+        guard let v10 = serialized["var10"]?.to(TestAssociatedEnum.self) else { return nil }
         
-        guard let v5 = _v5.arrayValue as? [Int] else { return nil }
-        guard let v6 = _v6.dictionaryValue as? [String: Int] else { return nil }
-        let v7 = _v7.arrayValue as [Any]
-        let v8 = _v8.dictionaryValue as [String: Any]
-        guard let x1 = v7[0] as? Int, let x2 = v7[1] as? String, let _x3 = v7[2] as? Document, let x3 = _x3.arrayValue as? [Int],
-            let x4 = v7[3] as? (Int), let _x5 = v7[4] as? Document, let x5 = _x5.dictionaryValue as? [String: String],
-            let __x6 = v7[5] as? Document, let _x6 = __x6.arrayValue as? [Int], _x6.count == 3 else {
+        guard let x1 = _v7[0].to(Int.self),
+              let x2 = _v7[1].to(String.self),
+              let x3 = _v7[2].toArray(typed: Int.self),
+              let x4 = _v7[3].to(Int.self),
+              let x5 = _v7[4].to(Document.self)?.dictionaryValue as? [String: String],
+              let x6 = _v7[5].toArray(typed: Int.self, count: 3)?.tuple(Int.self, Int.self, Int.self) else {
             return nil
         }
-        let x6 = (_x6[0], _x6[1], _x6[2])
-        
-        guard v7.count == 6 else { return nil }
-        let __v7 = (x1, x2, x3, x4, x5, x6)
-        guard let __v10 = TestAssociatedEnum.deserialize(doc: v10) else { return nil }
         
         var r = TestStruct()
         r.var1 = v1
@@ -238,10 +224,10 @@ fileprivate struct TestStruct: PKObjectReflectionSerializable {
         r.var4 = v4
         r.var5 = v5
         r.var6 = v6
-        r.var7 = __v7
+        r.var7 = (x1, x2, x3, x4, x5, x6)
         r.var8 = v8
         r.var9 = v9
-        r.var10 = __v10
+        r.var10 = v10
         
         return r
     }
@@ -250,10 +236,7 @@ fileprivate struct TestStruct: PKObjectReflectionSerializable {
 fileprivate enum TestSimpleEnum: PKEnumReflectionSerializable {
     case x
     case y
-    
-    static func deserialize(doc: Primitive) -> TestSimpleEnum? {
-        guard let serialized = doc as? [String: Primitive] else { return nil }
-        guard let `case` = serialized["case"] as? String else { return nil }
+    static func deserialize(case: String, values: [Primitive]?) -> TestSimpleEnum? {
         switch `case` {
         case "x":
             return .x
@@ -277,24 +260,55 @@ fileprivate enum TestStringRawEnum: String, PKEnumReflectionSerializable {
 fileprivate enum TestAssociatedEnum: PKEnumReflectionSerializable {
     case x(Int, Int)
     case y(String, Int)
-    
-    static func deserialize(doc: Primitive) -> TestAssociatedEnum? {
-        guard let serialized = doc as? Document else { return nil }
-        
-        guard let `case` = serialized["case"] as? String else { return nil }
-        guard let _values = serialized["values"] as? Document else { return nil }
-        let values = _values.arrayValue as [Any]
-        if values.count != 2 { return nil }
-        guard let _1 = values[1] as? Int else { return nil }
+    static func deserialize(case: String, values: [Primitive]?) -> TestAssociatedEnum? {
+        guard let values = values else { return nil }
+        guard values.count == 2 else { return nil }
+        guard let _1 = values[1].to(Int.self) else { return nil }
         
         switch `case` {
         case "x":
-            guard let _0 = values[0] as? Int else { return nil }
+            guard let _0 = values[0].to(Int.self) else { return nil }
             return .x(_0, _1)
         case "y":
-            guard let _0 = values[0] as? String else { return nil }
+            guard let _0 = values[0].to(String.self) else { return nil }
             return .y(_0, _1)
         default: return nil
         }
+    }
+}
+
+extension Array {
+    func tuple<A, B>(_: A.Type, _: B.Type) -> (A, B)? {
+        guard self.count == 2, let _0 = self[0] as? A, let _1 = self[1] as? B else {
+            return nil
+        }
+        return (_0, _1)
+    }
+    func tuple<A, B, C>(_: A.Type, _: B.Type, _: C.Type) -> (A, B, C)? {
+        guard self.count == 3, let _0 = self[0] as? A, let _1 = self[1] as? B, let _2 = self[2] as? C else {
+            return nil
+        }
+        return (_0, _1, _2)
+    }
+    func tuple<A, B, C, D>(_: A.Type, _: B.Type, _: C.Type, _: D.Type) -> (A, B, C, D)? {
+        guard self.count == 3, let _0 = self[0] as? A, let _1 = self[1] as? B, let _2 = self[2] as? C,
+            let _3 = self[3] as? D else {
+            return nil
+        }
+        return (_0, _1, _2, _3)
+    }
+    func tuple<A, B, C, D, E>(_: A.Type, _: B.Type, _: C.Type, _: D.Type, _: E.Type) -> (A, B, C, D, E)? {
+        guard self.count == 3, let _0 = self[0] as? A, let _1 = self[1] as? B, let _2 = self[2] as? C,
+            let _3 = self[3] as? D, let _4 = self[4] as? E else {
+                return nil
+        }
+        return (_0, _1, _2, _3, _4)
+    }
+    func tuple<A, B, C, D, E, F>(_: A.Type, _: B.Type, _: C.Type, _: D.Type, _: E.Type, _: F.Type) -> (A, B, C, D, E, F)? {
+        guard self.count == 3, let _0 = self[0] as? A, let _1 = self[1] as? B, let _2 = self[2] as? C,
+            let _3 = self[3] as? D, let _4 = self[4] as? E, let _5 = self[5] as? F else {
+                return nil
+        }
+        return (_0, _1, _2, _3, _4, _5)
     }
 }

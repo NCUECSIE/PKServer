@@ -1,6 +1,6 @@
 import Foundation
 
-enum SerializationError: Error {
+public enum SerializationError: Error {
     case unsupportedType
     case unsupportedValue
 }

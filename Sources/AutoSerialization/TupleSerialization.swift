@@ -23,7 +23,7 @@ func serializeTuple<T: Primitive, U: Primitive, R: Primitive, S: Primitive, V: P
 */
  
 /// 用映射 API 將 Tuple 序列化
-func serializeTuple(_ tuple: Any) -> [Primitive] {
+public func serializeTuple(_ tuple: Any) -> [Primitive] {
     if let tuple = tuple as? Primitive {
         return [tuple]
     }

@@ -11,9 +11,12 @@ class PKResourceManager: RouterMiddleware {
     /// 共享的實例
     public private(set) static var shared: PKResourceManager!
     
+    /// 設定
+    internal let config: PKSharedConfig
+    
     /// MongoDB 的資料集
-    public private(set) var mongodbServer: MongoKitten.Server
-    public private(set) var collection: MongoKitten.Database
+    public let mongodbServer: MongoKitten.Server
+    public let database: MongoKitten.Database
     // public private(set) var redisServer: Void?
     
     /**
@@ -22,7 +25,7 @@ class PKResourceManager: RouterMiddleware {
        - mongoClientSettings: MongoDB 客戶端的設定
        - collectionName: MongoDB 的資料集名稱
      */
-    init?(mongoClientSettings mongo: MongoKitten.ClientSettings, collectionName: String) {
+    init?(mongoClientSettings mongo: MongoKitten.ClientSettings, collectionName: String, config cfg: PKSharedConfig) {
         if PKResourceManager.shared != nil {
             return nil
         }
@@ -31,7 +34,9 @@ class PKResourceManager: RouterMiddleware {
             return nil
         }
         mongodbServer = server
-        collection = server[collectionName]
+        database = server[collectionName]
+        config = cfg
+        
         PKResourceManager.shared = self
     }
     
@@ -42,4 +47,10 @@ class PKResourceManager: RouterMiddleware {
             next()
         }
     }
+}
+
+internal struct PKSharedConfig {
+    internal private(set) var facebookAppId: String
+    internal private(set) var facebookClientAccessToken: String
+    internal private(set) var facebookSecret: String
 }
