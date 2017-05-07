@@ -4,8 +4,8 @@ import SwiftyJSON
 import CryptoSwift
 import MongoKitten
 
-internal struct AuthActions {
-    static private func findUser(with provider: PKSocialLoginProvider, userId: String, in collection: MongoKitten.Collection) throws -> PKUser? {
+fileprivate struct AuthActions {
+    static func findUser(with provider: PKSocialLoginProvider, userId: String, in collection: MongoKitten.Collection) throws -> PKUser? {
         let providerRawValue = provider.rawValue
         let query = [
             "links": [ "$elemMatch":
@@ -14,22 +14,26 @@ internal struct AuthActions {
                     "userId": userId
                 ]
             ]
-        ] as Query
+            ] as Query
         
         var result: Document? = nil
         do {
             result = try collection.findOne(query)
         } catch {
-            throw PKServerError.databaseError(while: "trying to fetch your user data from collection.")
+            throw PKServerError.database(while: "trying to fetch your user data from collection.")
         }
         
         if result == nil { return nil }
-        else { return PKUser.deserialize(from: result!) }
+        else {
+            guard let deserialized = PKUser.deserialize(from: result!) else {
+                throw PKServerError.deserialization(data: "Users", while: "fetching your record from database.")
+            }
+            return deserialized
+        }
     }
     
-    static func loginWithFacebook(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) throws {
-        // TODO: 支援其他 Scope
-        
+    // TODO: 支援其他 Scope
+    static func loginOrRegisterWithFacebook(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) throws {
         let collection = request.database["users"]
         
         // 要求資料
@@ -40,7 +44,7 @@ internal struct AuthActions {
         }
         
         if scope != "standard" {
-            throw PKServerError.unimplementedError(feature: "agent and admin scope")
+            throw PKServerError.unimplemented(feature: "agent and admin scope")
         }
         
         // 先確認使用者的 Claim
@@ -49,7 +53,7 @@ internal struct AuthActions {
             let hashed = try HMAC(key: PKResourceManager.shared.config.facebookSecret, variant: .sha256).authenticate(accessToken.toBytes())
             proof = Data(bytes: hashed).toHexString()
         } catch {
-            throw PKServerError.cryptoError(while: "trying to hash your Facebook access token.")
+            throw PKServerError.crypto(while: "trying to hash your Facebook access token.")
         }
         
         var urlComponents = URLComponents(string: "https://graph.facebook.com/me")!
@@ -58,7 +62,7 @@ internal struct AuthActions {
             URLQueryItem(name: "access_token", value: accessToken)
         ]
         guard let url = urlComponents.url else {
-            throw PKServerError.otherError(description: "Unable to create URL to confirm your identity.")
+            throw PKServerError.unknown(description: "Unable to create URL to confirm your identity.")
         }
         
         func `throw`(error: PKServerError) {
@@ -68,12 +72,12 @@ internal struct AuthActions {
         
         URLSession.shared.dataTask(with: url) { data, _, error -> Void in
             guard error == nil, let data = data else {
-                `throw`(error: PKServerError.networkError(while: "confirming your identity with Facebook."))
+                `throw`(error: PKServerError.network(while: "confirming your identity with Facebook."))
                 return
             }
             let body = JSON(data: data)
             guard let userId = body["id"].string  else {
-                `throw`(error: .otherError(description: "Cannot deserialize response from Facebook while confirming your identity."))
+                `throw`(error: PKServerError.serialization(data: "from Facebook", while: "reading response from Facebook."))
                 return
             }
             
@@ -97,7 +101,7 @@ internal struct AuthActions {
                 do {
                     _ = try collection.insert(document)
                 } catch {
-                    `throw`(error: .databaseError(while: "saving your account to database."))
+                    `throw`(error: .database(while: "saving your account to database."))
                     return
                 }
             case .some(let user):
@@ -113,7 +117,7 @@ internal struct AuthActions {
                 do {
                     _ = try collection.findAndUpdate(query, with: update)
                 } catch {
-                    `throw`(error: .databaseError(while: "updating your account to database."))
+                    `throw`(error: .database(while: "updating your account to database."))
                     return
                 }
             }
@@ -121,10 +125,18 @@ internal struct AuthActions {
             response.send(token!)
         }.resume()
     }
-    
-    static func addFacebookLink(request: RouterRequest, response: RouterResponse, next: () -> Void) throws {}
+    static func addFacebookLink(request: RouterRequest, response: RouterResponse, next: () -> Void) throws {
+        
+    }
     static func deleteFacebookLink(request: RouterRequest, response: RouterResponse, next: () -> Void) throws {}
     static func deleteAccount(request: RouterRequest, response: RouterResponse, next: () -> Void) throws {}
+    static func inspect(request: RouterRequest, response: RouterResponse, next: () -> Void) throws {
+        var payload: [String: Primitive] = [ "loggedin": request.user != nil ]
+        if let scope = request.authenticatedScope {
+            payload["scope"] = scope.toDocument()!["case"]!
+        }
+        response.send(json: payload)
+    }
 }
 
 /**
@@ -152,13 +164,13 @@ func authRouter() -> Router {
     let router = Router()
     
     router.all("login", allowPartialMatch: true, middleware: loginRouter())
-    
+    router.get("", handler: AuthActions.inspect)
     return router
 }
 
 fileprivate func loginRouter() -> Router {
     let router = Router()
-    router.post("facebook", handler: AuthActions.loginWithFacebook)
+    router.post("facebook", handler: AuthActions.loginOrRegisterWithFacebook)
     
     return router
 }

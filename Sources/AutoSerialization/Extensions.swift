@@ -8,7 +8,14 @@ public extension Primitive {
         return self as? T
     }
     func toDocument(requiredKeys: [String] = []) -> Document? {
-        guard let document = self.to(Document.self) else { return nil }
+        var document: Document
+        if self is PKPrimitiveConvertible {
+            document = Document(self as! PKPrimitiveConvertible)
+        } else {
+            guard let doc = self.to(Document.self) else { return nil }
+            document = doc
+        }
+        
         let keys = document.keys
         for requiredKey in requiredKeys {
             if !keys.contains(requiredKey) { return nil }

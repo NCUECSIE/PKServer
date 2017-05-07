@@ -18,17 +18,18 @@ let mongodbSettings = ClientSettings(host: MongoHost(hostname: MONGO_HOST, port:
 let resourceManager = PKResourceManager(mongoClientSettings: mongodbSettings, collectionName: MONGO_COLLECTION, config: sharedConfig)
 
 let router = Router()
-router.all(middleware: BodyParser(), resourceManager!)
+router.all(middleware: BodyParser(), resourceManager!, AuthenticationMiddleware())
 router.all("stats", allowPartialMatch: true, middleware: statsRouter())
 router.all("auth", allowPartialMatch: true, middleware: authRouter())
 
 router.error() {
     request, response, next in
-    guard let error = response.error as? PKServerError else {
-        response.status(.internalServerError).send(json: ["error": "Unknown error."])
-        return
+    if response.error as? PKServerError == nil {
+        response.error = PKServerError.unknown(description: "Unknown error. Please check code!")
     }
-    response.status(error.response.code).send(json: ["error": error.response.message])
+    
+    let error = response.error! as! PKServerError
+    response.status(error.response.code).send(json: ["error": error.response.message, "code": error.response.errorCode])
 }
 
 Kitura.addHTTPServer(onPort: 8080, with: router)

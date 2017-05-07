@@ -110,7 +110,7 @@ struct PKUser: PKModel {
     }
     
     /// 使用者認證代幣
-    private var tokens: [PKToken] {
+    public var tokens: [PKToken] {
         willSet { __cleaness = .dirty }
     }
     
