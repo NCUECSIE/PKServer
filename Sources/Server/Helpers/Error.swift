@@ -91,6 +91,9 @@ enum PKServerError: Swift.Error {
     /// 傳入的 Token 無法被確認
     case badToken
     
+    /// 增加 Social 登入時，遇到已經在帳號中或是由其他帳號擁有的登入方法
+    case linkExisted
+    
     var localizedDescription: String {
         switch self {
         case .databaseNotConnected:
@@ -117,6 +120,8 @@ enum PKServerError: Swift.Error {
             return "The token you provided is expired, and will be deleted. Please login again."
         case .badToken:
             return "The token you provided is not valid. Please authenticate again."
+        case .linkExisted:
+            return "The social account already exists. Please login with that account."
         }
     }
     
@@ -131,6 +136,8 @@ enum PKServerError: Swift.Error {
             } else {
                 return (.badRequest, "Missing the following fields in body: \(fieldsDescription)", errorCode)
             }
+        case .linkExisted:
+            return (.badRequest, self.localizedDescription, errorCode)
         case .requiresAuthentication(_): fallthrough
         case .badToken: fallthrough
         case .tokenExpired:
@@ -168,6 +175,8 @@ enum PKServerError: Swift.Error {
             return 104
         case .deserialization(_):
             return 105
+        case .linkExisted:
+            return 106
         case .unimplemented(_):
             return 1000
         case .unknown(_):

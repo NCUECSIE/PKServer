@@ -50,7 +50,7 @@ struct PKSocialLoginLink: PKObjectReflectionSerializable {
     }
 }
 
-enum PKTokenScope: PKEnumReflectionSerializable {
+enum PKTokenScope: PKEnumReflectionSerializable, Equatable {
     case standard
     case agent(provider: ObjectId)
     case admin
@@ -66,6 +66,22 @@ enum PKTokenScope: PKEnumReflectionSerializable {
         case "admin":
             return .admin
         default: return nil
+        }
+    }
+    static func ==(lhs: PKTokenScope, rhs: PKTokenScope) -> Bool {
+        switch (lhs, rhs) {
+        case (.standard, .standard):
+            return true
+        case (.agent(let lhs_agent), .agent(let rhs_agent)):
+            if lhs_agent == rhs_agent {
+                return true
+            } else {
+                return false
+            }
+        case (.admin, .admin):
+            return true
+        default:
+            return false
         }
     }
 }

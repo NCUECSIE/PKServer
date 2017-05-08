@@ -39,6 +39,20 @@ struct AuthenticationMiddleware: RouterMiddleware {
             throw PKServerError.badToken
         }
     }
+    
+    static func mustBeAuthenticated(for action: String, as expectedScope: PKTokenScope? = nil) -> (RouterRequest, RouterResponse, @escaping () -> Void) throws -> Void {
+        return { request, response, next in
+            guard let _ = request.user,
+                  let scope = request.authenticatedScope else {
+                throw PKServerError.requiresAuthentication(action: action)
+            }
+            if let expectedScope = expectedScope, scope != expectedScope {
+                throw PKServerError.requiresAuthentication(action: action)
+            }
+            
+            next()
+        }
+    }
 }
 
 extension RouterRequest {
