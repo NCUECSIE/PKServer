@@ -1,6 +1,6 @@
 import Foundation
 import MongoKitten
-import AutoSerialization
+import PKAutoSerialization
 
 /// 表示文件的來源
 enum PKDocumentSource {

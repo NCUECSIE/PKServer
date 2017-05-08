@@ -1,7 +1,7 @@
 import Foundation
 import Security
 import BSON
-import AutoSerialization
+import PKAutoSerialization
 
 // MARK: 使用者資料型態
 enum PKAccessLevel: String, PKEnumReflectionSerializable {

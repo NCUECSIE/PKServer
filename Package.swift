@@ -7,6 +7,7 @@ let package = Package(
     dependencies: [
         .Package(url: "https://github.com/IBM-Swift/Kitura.git", majorVersion: 1, minor: 7),
         .Package(url: "https://github.com/IBM-Swift/HeliumLogger.git", majorVersion: 1, minor: 7),
+        .Package(url: "https://github.com/NCUECSIE/PKAutoSerialization.git", "1.0.1"),
         .Package(url: "https://github.com/OpenKitten/MongoKitten.git", "4.0.0-vaportls")
     ]
 )

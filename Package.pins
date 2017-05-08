@@ -80,6 +80,12 @@
       "version": "4.0.0-vaportls"
     },
     {
+      "package": "PKAutoSerialization",
+      "reason": null,
+      "repositoryURL": "https://github.com/NCUECSIE/PKAutoSerialization.git",
+      "version": "1.0.1"
+    },
+    {
       "package": "SSLService",
       "reason": null,
       "repositoryURL": "https://github.com/IBM-Swift/BlueSSLService.git",
@@ -89,13 +95,13 @@
       "package": "Schrodinger",
       "reason": null,
       "repositoryURL": "https://github.com/OpenKitten/Schrodinger.git",
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     {
       "package": "Socket",
       "reason": null,
       "repositoryURL": "https://github.com/IBM-Swift/BlueSocket.git",
-      "version": "0.12.45"
+      "version": "0.12.46"
     },
     {
       "package": "Socks",
