@@ -37,6 +37,10 @@ class PKResourceManager: RouterMiddleware {
         database = server[collectionName]
         config = cfg
         
+        // MARK: 用 HeliumLogger
+        // TODO: 想辦法將這個放在一個比較模組化的地方
+        mongodbServer.logger = MongoKittenLoggerAPIWrapper()
+        
         PKResourceManager.shared = self
     }
     
