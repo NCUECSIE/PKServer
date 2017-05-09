@@ -2,7 +2,6 @@ import MongoKitten
 import Kitura
 import HeliumLogger
 
-let infoLogger = HeliumLogger(.info)
 HeliumLogger.use()
 
 let MONGO_HOST = "127.0.0.1"
@@ -21,6 +20,8 @@ let router = Router()
 router.all(middleware: BodyParser(), resourceManager!, AuthenticationMiddleware())
 router.all("stats", allowPartialMatch: true, middleware: statsRouter())
 router.all("auth", allowPartialMatch: true, middleware: authRouter())
+router.all("spaces", allowPartialMatch: true, middleware: spacesRouter())
+router.all("providers", allowPartialMatch: true, middleware: providersRouter())
 
 router.error() {
     request, response, next in

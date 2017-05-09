@@ -102,38 +102,20 @@ struct PKToken: PKObjectReflectionSerializable {
 }
 
 struct PKUser: PKModel {
-    // MARK: 支援 PKModel
-    public private(set) var __cleaness: PKDocumentCleaness
-    public private(set) var __source: PKDocumentSource
-    
     /// 唯一識別碼
     public let _id: ObjectId?
     
     // MARK: 資料
     /// 使用者類型
-    public var types: [PKUserType] {
-        willSet { __cleaness = .dirty }
-    }
-    
+    public var types: [PKUserType]
     /// 使用者登入方法
-    public var links: [PKSocialLoginLink] {
-        willSet { __cleaness = .dirty }
-    }
-    
+    public var links: [PKSocialLoginLink]
     /// APNS 裝置 ID
-    public var deviceIds: [String] {
-        willSet { __cleaness = .dirty }
-    }
-    
+    public var deviceIds: [String]
     /// 使用者認證代幣
-    public var tokens: [PKToken] {
-        willSet { __cleaness = .dirty }
-    }
+    public var tokens: [PKToken]
     
     public init(_ type: PKUserType, initialLink link: PKSocialLoginLink) {
-        __cleaness = .dirty
-        __source = .code
-        
         _id = nil
         types = [type]
         links = [link]
@@ -152,8 +134,6 @@ struct PKUser: PKModel {
     }
     
     private init(_id i: ObjectId, types ty: [PKUserType], links l: [PKSocialLoginLink], deviceIds d: [String], tokens to: [PKToken]) {
-        __cleaness = .clean
-        __source = .database
         _id = i
         types = ty
         links = l

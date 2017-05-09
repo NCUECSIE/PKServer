@@ -184,6 +184,29 @@ fileprivate struct FacebookActions {
     static func deleteFacebookLink(request: RouterRequest, response: RouterResponse, next: () -> Void) throws {
         // 最後一個 Link 不可以透過這個方法刪除
         
+        let facebookUserId = request.parameters["facebookUid"]
+        let user = request.user!
+        
+        guard user.links.first(where: { $0.provider == .facebook && $0.userId == facebookUserId }) != nil else {
+            throw PKServerError.linkDoesNotExist
+        }
+        
+        let collection = request.database["users"]
+        let update = [
+            "$pull": [
+                "links": [
+                    "provider": PKSocialLoginProvider.facebook.rawValue,
+                    "userId": facebookUserId
+                ]
+            ]
+        ] as Document
+        do {
+            _ = try collection.findAndUpdate("_id" == user._id!, with: update)
+        } catch {
+            throw PKServerError.database(while: "removing the social account from database.")
+        }
+        
+        response.send("")
     }
 }
 

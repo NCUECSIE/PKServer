@@ -95,13 +95,13 @@
       "package": "Schrodinger",
       "reason": null,
       "repositoryURL": "https://github.com/OpenKitten/Schrodinger.git",
-      "version": "1.0.1"
+      "version": "1.0.0"
     },
     {
       "package": "Socket",
       "reason": null,
       "repositoryURL": "https://github.com/IBM-Swift/BlueSocket.git",
-      "version": "0.12.46"
+      "version": "0.12.45"
     },
     {
       "package": "Socks",
