@@ -1,23 +1,52 @@
 import MongoKitten
+import LoggerAPI
 import Kitura
 import HeliumLogger
+import Configuration
+import Darwin
 
 HeliumLogger.use()
 
-let MONGO_HOST = "127.0.0.1"
-let MONGO_PORT = 32768 as UInt16
-let MONGO_COLLECTION = "parking"
+let configurationManager = ConfigurationManager()
+configurationManager.load(file: "./../../config.json")
 
-let FACEBOOK_SECRET = "7db6ba25a25a3f9b2ee6b3c71a9d30e6"
-let FACEBOOK_APP_ID = "622685157925629"
-let FACEBOOK_CLIENT_TOKEN = "72222e6e8010af46eb65ea51b89bd694"
+guard let configs = configurationManager.getConfigs() as? [String: Any],
+      let mongodb = configs["mongodb"] as? [String: Any],
+      let mongodbHost = mongodb["host"] as? String,
+      let mongodbPort = mongodb["port"] as? UInt16,
+      let mongodbDatabase = mongodb["database"] as? String,
+      let facebook = configs["facebook"] as? [String: String],
+      let facebookSecret = facebook["secret"],
+      let facebookAppId = facebook["appId"],
+      let facebookClientAccessToken = facebook["clientAccessToken"] else {
+    let schema = [
+        "{",
+        "    \"mongodb\": {",
+        "        \"host\": \"127.0.0.1\",",
+        "        \"port\": 27017,",
+        "        \"database\": \"parking\"",
+        "    },",
+        "    \"facebook\": {",
+        "        \"secret\": \"your-facebook-app-secret\",",
+        "        \"appId\": \"your-facebook-app-id\",",
+        "        \"clientAccessToken\": \"your-facebook-app-client-access-token\"",
+        "    }",
+        "}"
+    ]
+    Log.error("Your configuration file should have the following format: ")
+    Log.error(schema.joined(separator: "\n"))
+    exit(1)
+}
 
-let sharedConfig = PKSharedConfig(facebookAppId: FACEBOOK_APP_ID, facebookClientAccessToken: FACEBOOK_CLIENT_TOKEN, facebookSecret: FACEBOOK_SECRET)
-let mongodbSettings = ClientSettings(host: MongoHost(hostname: MONGO_HOST, port: MONGO_PORT), sslSettings: nil, credentials: nil)
-let resourceManager = PKResourceManager(mongoClientSettings: mongodbSettings, collectionName: MONGO_COLLECTION, config: sharedConfig)
+let sharedConfig = PKSharedConfig(facebookAppId: facebookAppId, facebookClientAccessToken: facebookClientAccessToken, facebookSecret: facebookSecret)
+let mongodbSettings = ClientSettings(host: MongoHost(hostname: mongodbHost, port: mongodbPort), sslSettings: nil, credentials: nil)
+guard let resourceManager = PKResourceManager(mongoClientSettings: mongodbSettings, databaseName: mongodbDatabase, config: sharedConfig) else {
+    Log.error("Failed to connect to database.")
+    exit(1)
+}
 
 let router = Router()
-router.all(middleware: BodyParser(), resourceManager!, AuthenticationMiddleware())
+router.all(middleware: BodyParser(), resourceManager, AuthenticationMiddleware())
 router.all("stats", allowPartialMatch: true, middleware: statsRouter())
 router.all("auth", allowPartialMatch: true, middleware: authRouter())
 router.all("spaces", allowPartialMatch: true, middleware: spacesRouter())

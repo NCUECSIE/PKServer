@@ -25,7 +25,7 @@ class PKResourceManager: RouterMiddleware {
        - mongoClientSettings: MongoDB 客戶端的設定
        - collectionName: MongoDB 的資料集名稱
      */
-    init?(mongoClientSettings mongo: MongoKitten.ClientSettings, collectionName: String, config cfg: PKSharedConfig) {
+    init?(mongoClientSettings mongo: MongoKitten.ClientSettings, databaseName: String, config cfg: PKSharedConfig) {
         if PKResourceManager.shared != nil {
             return nil
         }
@@ -34,7 +34,7 @@ class PKResourceManager: RouterMiddleware {
             return nil
         }
         mongodbServer = server
-        database = server[collectionName]
+        database = server[databaseName]
         config = cfg
         
         // MARK: 用 HeliumLogger
