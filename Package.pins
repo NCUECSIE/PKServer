@@ -134,6 +134,12 @@
       "version": "1.2.7"
     },
     {
+      "package": "SwiftRedis",
+      "reason": null,
+      "repositoryURL": "https://github.com/IBM-Swift/Kitura-redis.git",
+      "version": "1.7.0"
+    },
+    {
       "package": "SwiftyJSON",
       "reason": null,
       "repositoryURL": "https://github.com/IBM-Swift/SwiftyJSON.git",
