@@ -20,12 +20,12 @@ class GridsParserTests: XCTestCase {
         
         for grid in ncGrids {
             let spec = grid.description
-            print(spec)
+            expectedGrids[spec] = true
             
             count += 1
         }
         
         XCTAssertEqual(count, 10)
-        // XCTAssert(expectedGrids.reduce(true, { $0 && $1.1 }), "Not all grids show up.")
+        XCTAssert(expectedGrids.reduce(true, { $0 && $1.1 }), "Not all grids show up.")
     }
 }

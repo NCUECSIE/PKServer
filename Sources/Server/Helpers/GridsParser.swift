@@ -127,8 +127,8 @@ struct ConsecutiveGrids: Grids, ExpressibleByStringLiteral, CustomStringConverti
     // MARK: CustomStringConvertible
     var description: String {
         var roundedRange = (latitude: (min: "", max: ""), longitude: (min: "", max: ""))
-        roundedRange.latitude = (min: String(format: "%02f", lowerLeft.latitude), max: String(format: "%02f", upperRight.latitude))
-        roundedRange.longitude = (min: String(format: "%02f", lowerLeft.longitude), max: String(format: "%02f", upperRight.longitude))
+        roundedRange.latitude = (min: String(format: "%.02f", lowerLeft.latitude), max: String(format: "%.02f", upperRight.latitude))
+        roundedRange.longitude = (min: String(format: "%.02f", lowerLeft.longitude), max: String(format: "%.02f", upperRight.longitude))
         
         return "\(roundedRange.latitude.min)-\(roundedRange.latitude.max):\(roundedRange.longitude.min)-\(roundedRange.longitude.max)"
     }
@@ -165,6 +165,6 @@ struct Grid: Grids, CustomStringConvertible {
     
     // MARK: CustomStringConvertible
     var description: String {
-        return "\(location.latitude):\(location.longitude)"
+        return String(format: "%.02f:%.02f", location.latitude, location.longitude)
     }
 }
