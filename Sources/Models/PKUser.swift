@@ -4,16 +4,16 @@ import BSON
 import PKAutoSerialization
 
 // MARK: 使用者資料型態
-enum PKAccessLevel: String, PKEnumReflectionSerializable {
+public enum PKAccessLevel: String, PKEnumReflectionSerializable {
     case readOnly = "readOnly"
     case readWrite = "readWrite"
 }
-enum PKUserType: PKEnumReflectionSerializable {
+public enum PKUserType: PKEnumReflectionSerializable {
     case standard
     case agent(provider: ObjectId, access: PKAccessLevel)
     case admin(access: PKAccessLevel)
     
-    static func deserialize(case: String, values: [Primitive]?) -> PKUserType? {
+    public static func deserialize(case: String, values: [Primitive]?) -> PKUserType? {
         switch `case` {
         case "standard":
             return .standard
@@ -31,16 +31,22 @@ enum PKUserType: PKEnumReflectionSerializable {
     }
 }
 
-enum PKSocialLoginProvider: String, PKEnumReflectionSerializable {
+public enum PKSocialLoginProvider: String, PKEnumReflectionSerializable {
     case facebook = "facebook"
 }
 
-struct PKSocialLoginLink: PKObjectReflectionSerializable {
-    let provider: PKSocialLoginProvider
-    let userId: String
-    var accessToken: String
+public struct PKSocialLoginLink: PKObjectReflectionSerializable {
+    public let provider: PKSocialLoginProvider
+    public let userId: String
+    public var accessToken: String
     
-    static func deserialize(from primitive: Primitive) -> PKSocialLoginLink? {
+    public init(provider p: PKSocialLoginProvider, userId uid: String, accessToken token: String) {
+        provider = p
+        userId = uid
+        accessToken = token
+    }
+    
+    public static func deserialize(from primitive: Primitive) -> PKSocialLoginLink? {
         guard let document = primitive.toDocument(requiredKeys: ["provider", "userId", "accessToken"]),
               let providerValue = PKSocialLoginProvider.deserialize(from: document["provider"]!),
               let userIdValue = document["userId"]!.to(String.self),
@@ -50,12 +56,12 @@ struct PKSocialLoginLink: PKObjectReflectionSerializable {
     }
 }
 
-enum PKTokenScope: PKEnumReflectionSerializable, Equatable {
+public enum PKTokenScope: PKEnumReflectionSerializable, Equatable {
     case standard
     case agent(provider: ObjectId)
     case admin
     
-    static func deserialize(case: String, values: [Primitive]?) -> PKTokenScope? {
+    public static func deserialize(case: String, values: [Primitive]?) -> PKTokenScope? {
         switch `case` {
         case "standard":
             return .standard
@@ -68,7 +74,7 @@ enum PKTokenScope: PKEnumReflectionSerializable, Equatable {
         default: return nil
         }
     }
-    static func ==(lhs: PKTokenScope, rhs: PKTokenScope) -> Bool {
+    public static func ==(lhs: PKTokenScope, rhs: PKTokenScope) -> Bool {
         switch (lhs, rhs) {
         case (.standard, .standard):
             return true
@@ -85,13 +91,13 @@ enum PKTokenScope: PKEnumReflectionSerializable, Equatable {
         }
     }
 }
-struct PKToken: PKObjectReflectionSerializable {
-    let value: String
-    let issued: Date
-    let expires: Date
-    let scope: PKTokenScope
+public struct PKToken: PKObjectReflectionSerializable {
+    public let value: String
+    public let issued: Date
+    public let expires: Date
+    public let scope: PKTokenScope
     
-    static func deserialize(from primitive: Primitive) -> PKToken? {
+    public static func deserialize(from primitive: Primitive) -> PKToken? {
         guard let document = primitive.toDocument(requiredKeys: ["value", "issued", "expires", "scope"]),
               let v = document["value"]?.to(String.self),
               let i = document["issued"]?.to(Date.self),
@@ -101,7 +107,7 @@ struct PKToken: PKObjectReflectionSerializable {
     }
 }
 
-struct PKUser: PKModel {
+public struct PKUser: PKModel {
     /// 唯一識別碼
     public let _id: ObjectId?
     
@@ -141,7 +147,7 @@ struct PKUser: PKModel {
         tokens = to
     }
     
-    static func deserialize(from primitive: Primitive) -> PKUser? {
+    public static func deserialize(from primitive: Primitive) -> PKUser? {
         guard let document = primitive.toDocument(requiredKeys: ["_id", "types", "links", "deviceIds", "tokens"]),
               let _idValue = document["_id"]!.to(ObjectId.self),
               let typesValue = document["types"]!.toArray(typed: PKUserType.self),

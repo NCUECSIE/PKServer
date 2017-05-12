@@ -1,18 +1,22 @@
 import Kitura
 import MongoKitten
 
+// MARK: Internal Modules
+import Utilities
+import Common
+
 /**
  管理應用程式的共享資源
  
  - Important:
  一個應用程式執行時期只能有一個 `PKResourceManager`
  */
-class PKResourceManager: RouterMiddleware {
+public class PKResourceManager: RouterMiddleware {
     /// 共享的實例
     public private(set) static var shared: PKResourceManager!
     
     /// 設定
-    internal let config: PKSharedConfig
+    public let config: PKSharedConfig
     
     /// MongoDB 的資料集
     public let mongodbServer: MongoKitten.Server
@@ -25,7 +29,7 @@ class PKResourceManager: RouterMiddleware {
        - mongoClientSettings: MongoDB 客戶端的設定
        - collectionName: MongoDB 的資料集名稱
      */
-    init?(mongoClientSettings mongo: MongoKitten.ClientSettings, databaseName: String, config cfg: PKSharedConfig) {
+    public init?(mongoClientSettings mongo: MongoKitten.ClientSettings, databaseName: String, config cfg: PKSharedConfig) {
         if PKResourceManager.shared != nil {
             return nil
         }
@@ -44,7 +48,7 @@ class PKResourceManager: RouterMiddleware {
         PKResourceManager.shared = self
     }
     
-    func handle(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) throws {
+    public func handle(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) throws {
         if !mongodbServer.isConnected {
             throw PKServerError.databaseNotConnected
         } else {
@@ -53,8 +57,14 @@ class PKResourceManager: RouterMiddleware {
     }
 }
 
-internal struct PKSharedConfig {
-    internal private(set) var facebookAppId: String
-    internal private(set) var facebookClientAccessToken: String
-    internal private(set) var facebookSecret: String
+public struct PKSharedConfig {
+    public private(set) var facebookAppId: String
+    public private(set) var facebookClientAccessToken: String
+    public private(set) var facebookSecret: String
+    
+    public init(facebookAppId fbId: String, facebookClientAccessToken fbToken: String, facebookSecret fbSecret: String) {
+        facebookAppId = fbId
+        facebookClientAccessToken = fbToken
+        facebookSecret = fbSecret
+    }
 }

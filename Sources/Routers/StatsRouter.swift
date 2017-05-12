@@ -1,6 +1,6 @@
 import Kitura
 
-func statsRouter() -> Router {
+public func statsRouter() -> Router {
     let router = Router()
     
     router.get(handler: {request, response, next in

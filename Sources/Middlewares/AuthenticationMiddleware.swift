@@ -1,8 +1,12 @@
 import Kitura
 import MongoKitten
 
-struct AuthenticationMiddleware: RouterMiddleware {
-    func handle(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) throws {
+// MARK: Internal Modules
+import Models
+import Common
+
+public struct AuthenticationMiddleware: RouterMiddleware {
+    public func handle(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) throws {
         request.userInfo["user"] = Optional<PKUser>(nilLiteral: ())
         request.userInfo["authenticatedScope"] = Optional<PKTokenScope>(nilLiteral: ())
         
@@ -31,8 +35,11 @@ struct AuthenticationMiddleware: RouterMiddleware {
                 throw PKServerError.deserialization(data: "Users", while: "fetching your record from database.")
             }
             request.userInfo["user"] = Optional<PKUser>(deserialized)
-            // let foundToken =
-            request.userInfo["authenticatedScope"] = Optional<PKTokenScope>(deserialized.tokens.first(where: { pkToken in pkToken.value == token })!.scope)
+            
+            let tokenIndex = deserialized.tokens.index(where: { pkToken in pkToken.value == token })!
+            let token = deserialized.tokens[tokenIndex]
+            
+            request.userInfo["authenticatedScope"] = Optional<PKTokenScope>(token.scope)
             
             next()
         } else {
@@ -40,7 +47,7 @@ struct AuthenticationMiddleware: RouterMiddleware {
         }
     }
     
-    static func mustBeAuthenticated(for action: String, as expectedScope: PKTokenScope? = nil) -> (RouterRequest, RouterResponse, @escaping () -> Void) throws -> Void {
+    public static func mustBeAuthenticated(for action: String, as expectedScope: PKTokenScope? = nil) -> (RouterRequest, RouterResponse, @escaping () -> Void) throws -> Void {
         return { request, response, next in
             guard let _ = request.user,
                   let scope = request.authenticatedScope else {
@@ -53,13 +60,15 @@ struct AuthenticationMiddleware: RouterMiddleware {
             next()
         }
     }
+    
+    public init() {}
 }
 
-extension RouterRequest {
-    var user: PKUser? {
+public extension RouterRequest {
+    public var user: PKUser? {
         return (self.userInfo["user"] as! PKUser?)
     }
-    var authenticatedScope: PKTokenScope? {
+    public var authenticatedScope: PKTokenScope? {
         return (self.userInfo["authenticatedScope"] as! PKTokenScope?)
     }
 }

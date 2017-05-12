@@ -1,4 +1,7 @@
+import Foundation
 import XCTest
+
+@testable import Utilities
 
 class GridsParserTests: XCTestCase {
     func testNonConsecutiveGrids() {

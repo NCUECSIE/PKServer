@@ -1,6 +1,6 @@
 import Kitura
 
-func providersRouter() -> Router {
+public func providersRouter() -> Router {
     let router = Router()
     return router
 }

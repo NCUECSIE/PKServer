@@ -1,6 +1,6 @@
 import KituraNet
 
-enum PKServerError: Swift.Error {
+public enum PKServerError: Swift.Error {
     /// 資料庫尚未連項
     /// - Note: 此 Error 只有在當 `PKResourceManager` 無法連線至伺服器時被丟出
     /// - Important: 不應該在路由中丟出此
@@ -130,7 +130,7 @@ enum PKServerError: Swift.Error {
         }
     }
     
-    var response: (code: HTTPStatusCode, message: String, errorCode: Int) {
+    public var response: (code: HTTPStatusCode, message: String, errorCode: Int) {
         switch self {
         case .missingBody(fields: let fields):
             let fieldsDescription = fields.map { field in "\(field.name) of type \(field.type)" }.joined(separator: ", ")

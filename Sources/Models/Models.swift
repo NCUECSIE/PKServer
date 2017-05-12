@@ -3,6 +3,10 @@ import HeliumLogger
 import MongoKitten
 import PKAutoSerialization
 
+// MARK: Internal Modules
+import Common
+import ResourceManager
+
 /// 表示文件的來源
 enum PKDocumentSource {
     /// 文件是由應用程式手動產生

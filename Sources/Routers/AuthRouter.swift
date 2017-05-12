@@ -5,12 +5,18 @@ import SwiftyJSON
 import CryptoSwift
 import MongoKitten
 
+// MARK: Internal Modules
+import Common
+import Middlewares
+import Models
+import ResourceManager
+
 fileprivate struct FacebookActions {
     static func getFacebookUserId(for accessToken: String, callback: @escaping (String?, PKServerError?) -> Void) {
         // 先確認使用者的 Claim
         var proof: String! = nil
         do {
-            let hashed = try HMAC(key: PKResourceManager.shared.config.facebookSecret, variant: .sha256).authenticate(accessToken.toBytes())
+            let hashed = try HMAC(key: PKResourceManager.shared.config.facebookSecret, variant: .sha256).authenticate(accessToken.utf8.map({ $0 }))
             proof = Data(bytes: hashed).toHexString()
         } catch {
             callback(nil, PKServerError.crypto(while: "trying to hash your Facebook access token."))
@@ -268,7 +274,7 @@ fileprivate struct AuthActions {
    - 刪除帳號（`DELETE account`）
  
  */
-func authRouter() -> Router {
+public func authRouter() -> Router {
     let router = Router()
     
     router.all("login", allowPartialMatch: true, middleware: loginRouter())
