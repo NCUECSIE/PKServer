@@ -57,7 +57,7 @@ guard let resourceManager = PKResourceManager(mongoClientSettings: mongodbSettin
 }
 
 let router = Router()
-router.all(middleware: BodyParser(), resourceManager, AuthenticationsMiddleware())
+router.all(middleware: BodyParser(), resourceManager, AuthenticationMiddleware())
 router.all("stats", allowPartialMatch: true, middleware: statsRouter())
 router.all("auth", allowPartialMatch: true, middleware: authRouter())
 router.all("spaces", allowPartialMatch: true, middleware: spacesRouter())
