@@ -10,8 +10,6 @@ import ResourceManager
 fileprivate struct ProviderActions {
     static func create(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) -> Void {
         let collection = request.database["providers"]
-        let name: String? = nil
-        let type: String? = nil
         
         //required keys: "_id", "name", "type", ""
         guard let body = request.body?.asJSON , let name = body["name"].string, let type = body["type"].string else {
@@ -38,7 +36,7 @@ fileprivate struct ProviderActions {
         }
         if(exist == nil) {
             do {
-                let provider = PKProvider(name: name!, type: PKProviderType(rawValue: type!)!)
+                let provider = PKProvider(name: name, type: PKProviderType(rawValue: type)!)
                 _ = try collection.insert(Document(provider)!)
             }catch {
                 response.error = PKServerError.database(while: "inserting PKProvider.")
@@ -84,8 +82,8 @@ fileprivate struct ProviderActions {
         if(result == nil) {
             response.error = PKServerError.unknown(description: "Can't find provider")
         } else {
-            //
-            response.send(json: result)
+            let payload = Dictionary(result)
+            response.send(json: payload!)
         }
         return
     }
@@ -94,6 +92,7 @@ fileprivate struct ProviderActions {
         
         guard let body = request.body?.asJSON, let name = body["name"].string, let type = body["type"].string else {
             response.error = PKServerError.missingBody(fields: [])
+            return
         }
         
         let filter = [
@@ -117,8 +116,8 @@ fileprivate struct ProviderActions {
         if(result == nil) {
             response.error = PKServerError.unknown(description: "Fail to update provider.")
         } else {
-            let payload: [String: Primitive] = [result?.toDocument()]
-            response.send(json: [String : payload])
+            let payload = Dictionary(result)
+            response.send(json: payload!)
         }
         
         return
@@ -128,6 +127,7 @@ fileprivate struct ProviderActions {
         
         guard let body = request.body?.asJSON, let name = body["name"].string, let type = body["type"].string else {
             response.error = PKServerError.missingBody(fields: [])
+            return
         }
 
         let filter = [
@@ -146,7 +146,8 @@ fileprivate struct ProviderActions {
         if(result == nil) {
             response.error = PKServerError.unknown(description: "Fail to delete provider.")
         } else {
-            response.send(json: result)
+            let payload = Dictionary(result)
+            response.send(json: payload!)
         }
         
         return
