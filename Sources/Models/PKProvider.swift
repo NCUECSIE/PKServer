@@ -1,17 +1,17 @@
 import BSON
 import PKAutoSerialization
 
-enum PKProviderType: String, PKEnumReflectionSerializable {
+public enum PKProviderType: String, PKEnumReflectionSerializable {
     case government = "government"
     case `private` = "private"
 }
 
-struct PKContactInformation: PKObjectReflectionSerializable {
+public struct PKContactInformation: PKObjectReflectionSerializable {
     var phone: String?
     var email: String?
     var address: String?
     
-    static func deserialize(from primitive: Primitive) -> PKContactInformation? {
+    public static func deserialize(from primitive: Primitive) -> PKContactInformation? {
         guard let document = primitive.toDocument(requiredKeys: ["phone", "email", "address"]),
               let p = document["phone"].to(String?.self),
               let e = document["email"].to(String?.self),
@@ -22,7 +22,7 @@ struct PKContactInformation: PKObjectReflectionSerializable {
     }
 }
 
-struct PKProvider: PKModel {
+public struct PKProvider: PKModel {
     /// 唯一識別碼
     public let _id: ObjectId?
     
@@ -43,7 +43,7 @@ struct PKProvider: PKModel {
         contactInformation = c
     }
     
-    static func deserialize(from primitive: Primitive) -> PKProvider? {
+    public static func deserialize(from primitive: Primitive) -> PKProvider? {
         guard let document = primitive.toDocument(requiredKeys: ["_id", "name", "type", "contactInformation"]),
               let i = document["_id"]!.to(ObjectId.self),
               let n = document["name"]!.to(String.self),

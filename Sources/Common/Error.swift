@@ -97,6 +97,8 @@ public enum PKServerError: Swift.Error {
     /// 移除 Social 登入時，找不到該連結
     case linkDoesNotExist
     
+    case unauthorized(to: String)
+    
     var localizedDescription: String {
         switch self {
         case .databaseNotConnected:
@@ -127,6 +129,8 @@ public enum PKServerError: Swift.Error {
             return "The social account already exists. Please login with that account."
         case .linkDoesNotExist:
             return "The social account does not exist on your account."
+        case .unauthorized(to: let action):
+            return "You are unauthorized to \(action)"
         }
     }
     
@@ -148,7 +152,8 @@ public enum PKServerError: Swift.Error {
         
         case .requiresAuthentication(_): fallthrough
         case .badToken: fallthrough
-        case .tokenExpired:
+        case .tokenExpired: fallthrough
+        case .unauthorized(_):
             return (.unauthorized, self.localizedDescription, errorCode)
         
         default:
@@ -168,10 +173,12 @@ public enum PKServerError: Swift.Error {
             return 0
         case .requiresAuthentication(_):
             return 10
-        case .badToken:
+        case .unauthorized(_):
             return 11
-        case .tokenExpired:
+        case .badToken:
             return 12
+        case .tokenExpired:
+            return 13
         case .missingBody(_):
             return 100
         case .network(_):

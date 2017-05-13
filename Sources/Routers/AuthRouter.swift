@@ -246,7 +246,7 @@ fileprivate struct AuthActions {
     static func deleteAccount(request: RouterRequest, response: RouterResponse, next: () -> Void) throws {}
     static func inspect(request: RouterRequest, response: RouterResponse, next: () -> Void) throws {
         var payload: [String: Primitive] = [ "loggedin": request.user != nil ]
-        if let scope = request.authenticatedScope {
+        if let scope = request.userType {
             payload["scope"] = scope.toDocument()!["case"]!
         }
         response.send(json: payload)
@@ -306,8 +306,8 @@ fileprivate func linksRouter() -> Router {
 fileprivate func facebookLinkRouter() -> Router {
     let router = Router()
     
-    router.post(handler: AuthenticationMiddleware.mustBeAuthenticated(for: "adding new facebook link"), FacebookActions.addFacebookLink)
-    router.delete(":facebookUid", handler: AuthenticationMiddleware.mustBeAuthenticated(for: "removing facebook link"),FacebookActions.deleteFacebookLink)
+    router.post(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "add new facebook link"), FacebookActions.addFacebookLink)
+    router.delete(":facebookUid", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "remove facebook link"), FacebookActions.deleteFacebookLink)
     
     return router
 }

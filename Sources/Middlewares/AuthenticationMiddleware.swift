@@ -8,7 +8,7 @@ import Common
 public struct AuthenticationMiddleware: RouterMiddleware {
     public func handle(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) throws {
         request.userInfo["user"] = Optional<PKUser>(nilLiteral: ())
-        request.userInfo["authenticatedScope"] = Optional<PKTokenScope>(nilLiteral: ())
+        request.userInfo["userType"] = Optional<PKUserType>(nilLiteral: ())
         
         guard let token = request.headers["token"] else {
             next()
@@ -39,7 +39,28 @@ public struct AuthenticationMiddleware: RouterMiddleware {
             let tokenIndex = deserialized.tokens.index(where: { pkToken in pkToken.value == token })!
             let token = deserialized.tokens[tokenIndex]
             
-            request.userInfo["authenticatedScope"] = Optional<PKTokenScope>(token.scope)
+            switch token.scope {
+            case .standard:
+                request.userInfo["userType"] = Optional<PKUserType>(.standard)
+            case .admin:
+                let adminUserType = deserialized.types.first(where: { (type: PKUserType) -> Bool in
+                    if case .admin(_) = type {
+                        return true
+                    }
+                    return false
+                })!
+                request.userInfo["userType"] = Optional<PKUserType>(adminUserType)
+            case .agent(provider: let providerId):
+                let agentUserType = deserialized.types.first(where: { (type: PKUserType) -> Bool in
+                    switch type {
+                    case .agent(provider: providerId, access: _):
+                        return true
+                    default:
+                        return false
+                    }
+                })!
+                request.userInfo["userType"] = Optional<PKUserType>(agentUserType)
+            }
             
             next()
         } else {
@@ -47,14 +68,34 @@ public struct AuthenticationMiddleware: RouterMiddleware {
         }
     }
     
-    public static func mustBeAuthenticated(for action: String, as expectedScope: PKTokenScope? = nil) -> (RouterRequest, RouterResponse, @escaping () -> Void) throws -> Void {
+    public static func mustBeAuthenticated(to action: String, as types: [PKUserType] = []) -> (RouterRequest, RouterResponse, @escaping () -> Void) throws -> Void {
         return { request, response, next in
-            guard let _ = request.user,
-                  let scope = request.authenticatedScope else {
-                throw PKServerError.requiresAuthentication(action: action)
+            guard let _ = request.user else {
+                throw PKServerError.unauthorized(to: action)
             }
-            if let expectedScope = expectedScope, scope != expectedScope {
-                throw PKServerError.requiresAuthentication(action: action)
+            let requestUserType = request.userType!
+            
+            if types.isEmpty {
+                next()
+                return
+            }
+            
+            let first = types.first(where: { (type: PKUserType) -> Bool in
+                switch (type, requestUserType) {
+                case (.agent(provider: let lhs, access: .readOnly), .agent(provider: let rhs, access: _)):
+                    return lhs == rhs
+                case (.agent(provider: let lhs, access: .readWrite), .agent(provider: let rhs, access: .readWrite)):
+                    return lhs == rhs
+                case (.admin(access: .readOnly), .admin(access: _)): fallthrough
+                case (.admin(access: .readWrite), .admin(access: .readWrite)): fallthrough
+                case (.standard, .standard):
+                    return true
+                default:
+                    return false
+                }
+            })
+            guard let _ = first else {
+                throw PKServerError.unauthorized(to: action)
             }
             
             next()
@@ -68,7 +109,7 @@ public extension RouterRequest {
     public var user: PKUser? {
         return (self.userInfo["user"] as! PKUser?)
     }
-    public var authenticatedScope: PKTokenScope? {
-        return (self.userInfo["authenticatedScope"] as! PKTokenScope?)
+    public var userType: PKUserType? {
+        return (self.userInfo["userType"] as! PKUserType?)
     }
 }
