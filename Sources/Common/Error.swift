@@ -52,9 +52,9 @@ public enum PKServerError: Swift.Error {
     ///
     ///   例如：
     ///   ```
-    ///   PKServerError.unimplemented(feature: "agent and admin scope")
+    ///   PKServerError.notImplemented(feature: "agent and admin scope")
     ///   ```
-    case unimplemented(feature: String)
+    case notImplemented(feature: String)
     
     /// 出現序列化錯誤
     /// - Note: `data` 為嘗試序列化的資料；`while` 為嘗試序列化的原因
@@ -109,7 +109,7 @@ public enum PKServerError: Swift.Error {
             return "Database error occured while \(activity)"
         case .crypto(while: let activity):
             return "Crypto error occured while \(activity)"
-        case .unimplemented(feature: let feature):
+        case .notImplemented(feature: let feature):
             return "The requested feature, \(feature), is not implemented."
         case .unknown(description: let description):
             return description
@@ -188,7 +188,7 @@ public enum PKServerError: Swift.Error {
             return 106
         case .linkDoesNotExist:
             return 107
-        case .unimplemented(_):
+        case .notImplemented(_):
             return 1000
         case .unknown(_):
             return 1001

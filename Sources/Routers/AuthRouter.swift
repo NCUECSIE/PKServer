@@ -11,6 +11,10 @@ import Middlewares
 import Models
 import ResourceManager
 
+protocol PKSocialLoginProviderActions {
+    static func socialLink(for: RouterRequest) -> PKSocialLoginLink?
+}
+
 fileprivate struct FacebookActions {
     static func getFacebookUserId(for accessToken: String, callback: @escaping (String?, PKServerError?) -> Void) {
         // 先確認使用者的 Claim
@@ -64,7 +68,7 @@ fileprivate struct FacebookActions {
         }
         
         if scope != "standard" {
-            throw PKServerError.unimplemented(feature: "agent and admin scope")
+            throw PKServerError.notImplemented(feature: "agent and admin scope")
         }
         
         FacebookActions.getFacebookUserId(for: accessToken) { userId, error in
@@ -243,7 +247,9 @@ fileprivate struct AuthActions {
             return deserialized
         }
     }
-    static func deleteAccount(request: RouterRequest, response: RouterResponse, next: () -> Void) throws {}
+    static func deleteAccount(request: RouterRequest, response: RouterResponse, next: () -> Void) throws {
+        throw PKServerError.notImplemented(feature: "deleting account")
+    }
     static func inspect(request: RouterRequest, response: RouterResponse, next: () -> Void) throws {
         var payload: [String: Primitive] = [ "loggedin": request.user != nil ]
         if let scope = request.authenticatedScope {
