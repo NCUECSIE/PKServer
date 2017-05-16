@@ -99,6 +99,9 @@ public enum PKServerError: Swift.Error {
     
     case unauthorized(to: String)
     
+    /// 不能移除最後一個社群登入方法
+    case cannotRemoveLastLink
+    
     var localizedDescription: String {
         switch self {
         case .databaseNotConnected:
@@ -131,6 +134,8 @@ public enum PKServerError: Swift.Error {
             return "The social account does not exist on your account."
         case .unauthorized(to: let action):
             return "You are unauthorized to \(action)"
+        case .cannotRemoveLastLink:
+            return "You cannot remove the last social login."
         }
     }
     
@@ -145,7 +150,7 @@ public enum PKServerError: Swift.Error {
             } else {
                 return (.badRequest, "Missing the following fields in body: \(fieldsDescription)", errorCode)
             }
-        
+        case .cannotRemoveLastLink: fallthrough
         case .linkExisted: fallthrough
         case .linkDoesNotExist:
             return (.badRequest, self.localizedDescription, errorCode)
@@ -195,6 +200,8 @@ public enum PKServerError: Swift.Error {
             return 106
         case .linkDoesNotExist:
             return 107
+        case .cannotRemoveLastLink:
+            return 108
         case .notImplemented(_):
             return 1000
         case .unknown(_):

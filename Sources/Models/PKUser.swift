@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import MongoKitten
 import BSON
 import PKAutoSerialization
 
@@ -121,9 +122,9 @@ public struct PKUser: PKModel {
     /// 使用者認證代幣
     public var tokens: [PKToken]
     
-    public init(_ type: PKUserType, initialLink link: PKSocialLoginLink) {
+    public init(initialLink link: PKSocialLoginLink) {
         _id = nil
-        types = [type]
+        types = [.standard]
         links = [link]
         deviceIds = []
         tokens = []
@@ -145,6 +146,16 @@ public struct PKUser: PKModel {
         links = l
         deviceIds = d
         tokens = to
+    }
+    
+    internal init?(from collection: MongoKitten.Collection, id: ObjectId) {
+        do {
+            let deserialized = PKUser.deserialize(from: try collection.findOne("_id" == id))
+            if deserialized == nil { return nil }
+            self = deserialized!
+        } catch {
+            return nil
+        }
     }
     
     public static func deserialize(from primitive: Primitive) -> PKUser? {
