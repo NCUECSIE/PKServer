@@ -1,167 +1,297 @@
+import Foundation
 import Kitura
 import MongoKitten
+import SwiftyJSON
 
-//internal modules
+// Internal Modules
 import Models
 import Middlewares
 import Common
 import ResourceManager
 
-fileprivate struct ProviderActions {
-    static func create(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) -> Void {
-        let collection = request.database["providers"]
+internal struct ProviderActions {
+    /// 型態安全新增提供者的方法
+    ///
+    /// - Parameters:
+    ///   - name: 提供者名稱
+    ///   - type: 提供者類型
+    ///   - completionHandler: 完成或是發生錯誤所呼叫的回呼
+    ///   - insertedId: 若成功，新的唯一識別碼
+    ///   - error: 若過程發生錯誤，錯誤物件
+    static func _create(name: String, type: PKProviderType, completionHandler: (_ insertedId: String?,_ error: PKServerError?) -> Void) {
+        let provider = PKProvider(name: name, type: type)
+        let document = Document(provider)
         
-        //required keys: "_id", "name", "type", ""
-        guard let body = request.body?.asJSON , let name = body["name"].string, let type = body["type"].string else {
-            response.error = PKServerError.missingBody(fields: [])
-            return
-        }
+        let collection = PKResourceManager.shared.database["providers"]
         
-        var exist:Document?  = nil
-        let query = [
-            "providers": ["$elematch":
-                [
-                    "name": name,
-                    "type": type
-                ]
-            ]
-        ] as Query
-        
-        do{
-            exist = try collection.findOne(query)
-        }catch {
-            exist = nil
-            response.error = PKServerError.database(while: "looking for duplicate provider.")
-            return
-        }
-        if(exist == nil) {
-            do {
-                let provider = PKProvider(name: name, type: PKProviderType(rawValue: type)!)
-                _ = try collection.insert(Document(provider)!)
-            }catch {
-                response.error = PKServerError.database(while: "inserting PKProvider.")
+        do {
+            guard let id = try collection.insert(document).to(ObjectId.self) else {
+                completionHandler(nil, .deserialization(data: "ObjectId", while: "reading inserted id from MongoKitten"))
                 return
             }
-        } else {
-            response.error = PKServerError.unknown(description: "Provider already exists.")
-            next()
-            return
+            
+            completionHandler(id.hexString, nil)
+        } catch {
+            completionHandler(nil, .database(while: "inserting information to database."))
         }
-        
-        
-        return
     }
     
-    static func read(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) -> Void {
-        let collection = request.database["providers"]
+    static func _read(completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
+        let collection = PKResourceManager.shared.database["providers"]
         
-        guard let body = request.body?.asJSON, let name = body["name"].string else {
-            response.error = PKServerError.missingBody(fields: [])
-            return
-        }
-        
-        let query = [
-            "$elematch": [
-                "name": name
-            ]
-        ] as Query
-        
-        let projection = [
-            "name": true,
-            "type": true,
-            "contactInformation": true
-        ] as Projection
-        
-        var result: Document? = nil
         do {
-            result = try collection.findOne(query, projecting: projection)
-        }catch {
-            response.error = PKServerError.database(while: "Finding provider.")
-        }
-        
-        if(result == nil) {
-            response.error = PKServerError.unknown(description: "Can't find provider")
-        } else {
-            let payload = Dictionary(result)
-            response.send(json: payload!)
-        }
-        return
-    }
-    static func update(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) -> Void {
-        let collection = request.database["providers"]
-        
-        guard let body = request.body?.asJSON, let name = body["name"].string, let type = body["type"].string else {
-            response.error = PKServerError.missingBody(fields: [])
-            return
-        }
-        
-        let filter = [
-            "$elematch": [
-                "name": name
-            ]
-        ] as Query
-        
-        let update = [
-            "name": name,
-            "type": type
-        ]
-        
-        var result: Document? = nil
-        do {
-            result = try collection.findAndUpdate(filter, with: Document(update)!)
+            var hasDeserializeError = false
+            let providers = try collection.find().map({ (document: Document) -> PKProvider in
+                guard let provider = PKProvider.deserialize(from: document) else {
+                    hasDeserializeError = true
+                    return PKProvider(name: "", type: .government)
+                }
+                return provider
+            })
+            
+            if hasDeserializeError {
+                completionHandler(nil, PKServerError.deserialization(data: "Provider", while: "deserializing BSON documents to Swift structures"))
+            } else {
+                let payload = providers.map { $0.simpleJSON }
+                
+                completionHandler(JSON(payload), nil)
+            }
         } catch {
-            response.error = PKServerError.database(while: "Updating provider.")
+            completionHandler(nil, .database(while: "reading all documents in a collection"))
         }
-        
-        if(result == nil) {
-            response.error = PKServerError.unknown(description: "Fail to update provider.")
-        } else {
-            let payload = Dictionary(result)
-            response.send(json: payload!)
-        }
-        
-        return
     }
-    static func delete(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) -> Void {
-        let collection = request.database["providers"]
+    
+    static func _read(id: ObjectId, completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
+        let collection = PKResourceManager.shared.database["providers"]
+        do {
+            guard let document = try collection.findOne("_id" == id) else {
+                completionHandler(nil, .notFound)
+                return
+            }
+            guard let provider = document.to(PKProvider.self) else {
+                completionHandler(nil, PKServerError.deserialization(data: "Provider", while: "deserializing from database"))
+                return
+            }
+            
+            completionHandler(provider.detailedJSON, nil)
+        } catch {
+            completionHandler(nil, .database(while: "fetching document"))
+        }
+    }
+    
+    static func _update(id: ObjectId, update: JSON, by: PKTokenScope, completionHandler: (_ error: PKServerError?) -> Void) {
+        let collection = PKResourceManager.shared.database["providers"]
+        var provider: PKProvider! = nil
         
-        guard let body = request.body?.asJSON, let name = body["name"].string, let type = body["type"].string else {
-            response.error = PKServerError.missingBody(fields: [])
+        do {
+            guard let document = try collection.findOne("_id" == id) else {
+                completionHandler(.notFound)
+                return
+            }
+            if let p = document.to(PKProvider.self) {
+                provider = p
+            } else {
+                completionHandler(PKServerError.deserialization(data: "Provider", while: "deserializing from database"))
+                return
+            }
+        } catch {
+            completionHandler(.database(while: "fetching document"))
             return
         }
-
-        let filter = [
-            "$elematch": [
-                "name": name,
-                "type": type
-            ]
-        ] as Query
         
-        var result: Document? = nil
+        if let name = update["name"].string {
+            provider.name = name
+        }
+        if let typeString = update["type"].string,
+            let type = PKProviderType(rawValue: typeString) {
+            if type != provider.type {
+                completionHandler(PKServerError.notImplemented(feature: "changing provider type"))
+                return
+            } // else continue!
+        }
+        
+        let contactInformation = update["contactInformation"]
+        
+        if let phone = contactInformation["phone"].string {
+            provider.contactInformation.phone = phone
+        } else if let _ = contactInformation["phone"].null {
+            provider.contactInformation.phone = nil
+        }
+        
+        if let email = contactInformation["email"].string {
+            provider.contactInformation.email = email
+        } else if let _ = contactInformation["email"].null {
+            provider.contactInformation.email = nil
+        }
+        if let address = contactInformation["address"].string {
+            provider.contactInformation.address = address
+        } else if let _ = contactInformation["address"].null {
+            provider.contactInformation.address = nil
+        }
+        
         do {
-            result = try collection.findAndRemove(filter)
+            try collection.update("_id" == provider._id!, to: Document(provider))
+            completionHandler(nil)
         } catch {
-            response.error = PKServerError.database(while: "Deleting provider.")
+            completionHandler(.database(while: "updating provider"))
         }
-        if(result == nil) {
-            response.error = PKServerError.unknown(description: "Fail to delete provider.")
-        } else {
-            let payload = Dictionary(result)
-            response.send(json: payload!)
+    }
+    
+    static func delete(id: ObjectId, completionHandler: (_ error: PKServerError?) -> Void) {
+        let spacesCollection = PKResourceManager.shared.database["spaces"]
+        let providersCollection = PKResourceManager.shared.database["providers"]
+        
+        do {
+            let spacesInProvider = try spacesCollection.find([ "provider": [ "$elemMatch": [ "$id": id ] ] ])
+            if try spacesInProvider.count() > 0 {
+                completionHandler(PKServerError.unknown(description: "There are currently spaces in your provider. Please remove them first!"))
+                return
+            }
+        } catch {
+            completionHandler(.database(while: "checking if there are spaces in the provider"))
+            return
         }
         
-        return
+        do {
+            try providersCollection.remove("_id" == id)
+        } catch {
+            completionHandler(.database(while: "removing the provider"))
+            return
+        }
+        
+        completionHandler(nil)
     }
 }
 
 public func providersRouter() -> Router {
     let router = Router()
     
-    router.post(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "adding new provider", as: [PKUserType.admin(access: .readWrite)]), ProviderActions.create)
-    router.get(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "read provider information", as: [PKUserType.admin(access: .readOnly)]), ProviderActions.read)
-    // Admin, Agent
-    router.patch(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "update provider information", as: [PKUserType.admin(access: .readWrite)]), ProviderActions.update) // Name, Contact Information
-    router.delete(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "delete provider", as: [PKUserType.admin(access: .readWrite)]), ProviderActions.delete)
+    // 產生新的提供者必須為可讀寫的管理員
+    router.post(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "add new provider", as: [PKUserType.admin(access: .readWrite)]), { req, res, next in
+        guard let body = req.body?.asJSON,
+            let name = body["name"].string,
+            let typeString = body["type"].string,
+            let type = PKProviderType(rawValue: typeString) else {
+                throw PKServerError.missingBody(fields: [])
+        }
+        
+        ProviderActions._create(name: name, type: type) { insertedId, error in
+            if let error = error {
+                res.error = error
+                next()
+            } else {
+                res.send(insertedId!)
+            }
+        }
+    })
+    
+    // 取得所有的提供者必須為管理員
+    router.get("", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "read provider information", as: [PKUserType.admin(access: .readOnly)]), { req, res, next in
+        ProviderActions._read { json, error in
+            if let error = error {
+                res.error = error
+                next()
+            } else {
+                res.send(json: json!)
+            }
+        }
+    })
+    
+    // 取得單一文件
+    router.get(":id") { req, res, next in
+        guard let oidString = req.parameters["id"],
+            let oid = try? ObjectId(oidString) else {
+                throw PKServerError.deserialization(data: "ObjectId", while: "converting URL parameter")
+        }
+        
+        ProviderActions._read(id: oid) { json, error in
+            if let error = error {
+                res.error = error
+                next()
+            } else {
+                res.send(json: json!)
+            }
+        }
+    }
+    
+    // 只有管理員、提供者可以更新資料
+    router.patch(":id", handler: { req, res, next in
+        // 取得 Id
+        guard let idString = req.parameters["id"],
+            let id = try? ObjectId(idString) else {
+                throw PKServerError.deserialization(data: "ObjectId", while: "converting URL parameter")
+        }
+        
+        req.userInfo["id"] = id
+        
+        // 先進行驗證！
+        let allowed = [PKUserType.admin(access: .readWrite), PKUserType.agent(provider: id, access: .readWrite)]
+        let middleware = AuthenticationMiddleware.mustBeAuthenticated(to: "update provider information", as: allowed)
+        do {
+            try middleware(req, res) {
+                next()
+            }
+        } catch {
+            res.error = error
+            next()
+        }
+    }, { req, res, next in
+        let id = req.userInfo["id"] as! ObjectId
+        guard let json = req.body?.asJSON else {
+            res.error = PKServerError.missingBody(fields: [])
+            next()
+            return
+        }
+        
+        var tokenScope: PKTokenScope! = nil
+        if case .admin(_) = req.userType! {
+            tokenScope = .admin
+        } else if case .agent(_) = req.userType! {
+            tokenScope = PKTokenScope.agent(provider: id)
+        }
+        
+        ProviderActions._update(id: id, update: json, by: tokenScope) { err in
+            if let err = err {
+                res.error = err
+                next()
+            } else {
+                res.send("")
+            }
+        }
+    })
+    
+    router.delete(":id", handler: { req, res, next in
+        // 取得 Id
+        guard let idString = req.parameters["id"],
+            let id = try? ObjectId(idString) else {
+                throw PKServerError.deserialization(data: "ObjectId", while: "converting URL parameter")
+        }
+        
+        req.userInfo["id"] = id
+        
+        // 先進行驗證！
+        let allowed = [PKUserType.admin(access: .readWrite), PKUserType.agent(provider: id, access: .readWrite)]
+        let middleware = AuthenticationMiddleware.mustBeAuthenticated(to: "delete provider information", as: allowed)
+        do {
+            try middleware(req, res) {
+                next()
+            }
+        } catch {
+            res.error = error
+            next()
+        }
+    }, { req, res, next in
+        let id = req.userInfo["id"] as! ObjectId
+        
+        ProviderActions.delete(id: id) { err in
+            if let err = err {
+                res.error = err
+                next()
+            } else {
+                res.send("")
+            }
+        }
+    })
     
     return router
 }

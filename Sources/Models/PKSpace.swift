@@ -1,12 +1,17 @@
 import PKAutoSerialization
 import CoreLocation
 import BSON
+import SwiftyJSON
 
-struct Fee: PKObjectReflectionSerializable {
-    var span: TimeInterval
-    var charge: Double
+public struct Fee: PKObjectReflectionSerializable {
+    public var span: TimeInterval
+    public var charge: Double
     
-    static func deserialize(from primitive: Primitive) -> Fee? {
+    public init(span s: TimeInterval, charge c: Double) {
+        span = s
+        charge = c
+    }
+    public static func deserialize(from primitive: Primitive) -> Fee? {
         guard let document = primitive.toDocument(requiredKeys: ["span, charge"]),
               let s = document["span"].to(Double.self),
               let c = document["charge"].to(Double.self) else {
@@ -16,7 +21,28 @@ struct Fee: PKObjectReflectionSerializable {
     }
 }
 
-struct PKSpace: PKModel {
+public struct PKSpace: PKModel {
+    public var simpleJSON: JSON {
+        return [
+            "_id": _id!.hexString,
+            "longitude": location.longitude,
+            "latitude": location.latitude
+        ]
+    }
+    public var detailedJSON: JSON {
+        return [
+            "_id": _id!.hexString,
+            "providerId": provider._id.hexString,
+            "longitude": location.longitude,
+            "latitude": location.latitude,
+            "markings": markings,
+            "fee": [
+                "charge": fee.charge,
+                "span": fee.span
+            ] as JSON
+        ]
+    }
+
     /// 唯一識別碼
     public let _id: ObjectId?
     
@@ -27,7 +53,7 @@ struct PKSpace: PKModel {
     public var fee: Fee
     
     /// 從資料庫初始化
-    init(id: ObjectId, provider p: PKDbRef<PKProvider>, location l: CLLocationCoordinate2D, markings m: String,
+    private init(id: ObjectId, provider p: PKDbRef<PKProvider>, location l: CLLocationCoordinate2D, markings m: String,
          fee f: Fee) {
         _id = id
         provider = p
@@ -36,7 +62,7 @@ struct PKSpace: PKModel {
         fee = f
     }
     /// 從程式碼初始化
-    init(provider p: ObjectId, latitude: CLLocationDegrees, longitude: CLLocationDegrees, markings m: String, fee f: Fee) {
+    public init(provider p: ObjectId, latitude: CLLocationDegrees, longitude: CLLocationDegrees, markings m: String, fee f: Fee) {
         _id = nil
         provider = PKDbRef<PKProvider>(id: p, collectionName: "providers")
         location = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -44,13 +70,13 @@ struct PKSpace: PKModel {
         fee = f
     }
     
-    func serialize() throws -> Primitive {
+    public func serialize() throws -> Primitive {
         return [ "provider": try provider.serialize(),
                  "location": try location.serialize(),
                  "markings": markings,
                  "fee": try fee.serialize() ] as Document
     }
-    static func deserialize(from primitive: Primitive) -> PKSpace? {
+    public static func deserialize(from primitive: Primitive) -> PKSpace? {
         guard let document = primitive.toDocument(requiredKeys: ["_id", "provider", "location", "markings", "fee"]),
               let i = document["_id"].to(ObjectId.self),
               let p = document["provider"]!.to(PKDbRef<PKProvider>.self),

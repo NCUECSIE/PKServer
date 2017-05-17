@@ -1,4 +1,5 @@
 import BSON
+import SwiftyJSON
 import PKAutoSerialization
 
 public enum PKProviderType: String, PKEnumReflectionSerializable {
@@ -7,9 +8,9 @@ public enum PKProviderType: String, PKEnumReflectionSerializable {
 }
 
 public struct PKContactInformation: PKObjectReflectionSerializable {
-    var phone: String?
-    var email: String?
-    var address: String?
+    public var phone: String?
+    public var email: String?
+    public var address: String?
     
     public static func deserialize(from primitive: Primitive) -> PKContactInformation? {
         guard let document = primitive.toDocument(requiredKeys: ["phone", "email", "address"]),
@@ -23,6 +24,26 @@ public struct PKContactInformation: PKObjectReflectionSerializable {
 }
 
 public struct PKProvider: PKModel {
+    public var simpleJSON: JSON {
+        return [
+            "_id": _id!.hexString,
+            "type": type.rawValue,
+            "name": name
+        ]
+    }
+    public var detailedJSON: JSON {
+        return [
+            "_id": _id!.hexString,
+            "type": type.rawValue,
+            "name": name,
+            "contactInformation": [
+                "phone": contactInformation.phone ?? "",
+                "email": contactInformation.email ?? "",
+                "address": contactInformation.address ?? ""
+            ] as JSON
+        ]
+    }
+    
     /// 唯一識別碼
     public let _id: ObjectId?
     

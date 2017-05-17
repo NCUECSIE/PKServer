@@ -9,21 +9,21 @@
 import Foundation
 import CoreLocation
 
-protocol Grids: Sequence {
+public protocol Grids: Sequence {
     var consecutiveGrids: [ConsecutiveGrids] { get }
     var grids: [Grid] { get }
 }
 
 // MARK: Sequence Conformance
-extension Grids {
-    typealias Iterator = IndexingIterator<[Grid]>
-    func makeIterator() -> IndexingIterator<[Grid]> {
+public extension Grids {
+    public typealias Iterator = IndexingIterator<[Grid]>
+    public func makeIterator() -> IndexingIterator<[Grid]> {
         return grids.makeIterator()
     }
 }
 
 /// 用來表示多個不連續方格
-struct NonConsecutiveGrids: Grids, ExpressibleByStringLiteral, CustomStringConvertible {
+public struct NonConsecutiveGrids: Grids, ExpressibleByStringLiteral, CustomStringConvertible {
     // TODO: 當兩個方格有重複的部分時，必須處理掉
     /* 假設狀況如下：
      |*|*|*|*| | |
@@ -45,43 +45,43 @@ struct NonConsecutiveGrids: Grids, ExpressibleByStringLiteral, CustomStringConve
      */
     
     // MARK: Stored Properties
-    let consecutiveGrids: [ConsecutiveGrids]
+    public let consecutiveGrids: [ConsecutiveGrids]
     
     // MARK: Computed Properties
-    var grids: [Grid] {
+    public var grids: [Grid] {
         return consecutiveGrids.map({ $0.grids }).reduce([], { $0 + $1 })
     }
     
     // MARK: ExpressibleByStringLiteral
-    typealias StringLiteralType = String
-    init(stringLiteral: String) {
+    public typealias StringLiteralType = String
+    public init(stringLiteral: String) {
         let consecutives = stringLiteral.characters.split(separator: ",")
         consecutiveGrids = consecutives.map() { ConsecutiveGrids(stringLiteral: String($0)) }
     }
     
     // MARK: CustomStringConvertible
-    var description: String {
+    public var description: String {
         return consecutiveGrids.map { "\($0)" }.joined(separator: ",")
     }
     
     // MARK: 不會用到的 Protocol（從單一字元初始化）
-    typealias UnicodeScalarLiteralType = String
-    typealias ExtendedGraphemeClusterLiteralType = String
-    init(extendedGraphemeClusterLiteral: String) { fatalError() }
-    init(unicodeScalarLiteral: String) { fatalError() }
+    public typealias UnicodeScalarLiteralType = String
+    public typealias ExtendedGraphemeClusterLiteralType = String
+    public init(extendedGraphemeClusterLiteral: String) { fatalError() }
+    public init(unicodeScalarLiteral: String) { fatalError() }
 }
 
 /// 用來表示連續方格
-struct ConsecutiveGrids: Grids, ExpressibleByStringLiteral, CustomStringConvertible {
+public struct ConsecutiveGrids: Grids, ExpressibleByStringLiteral, CustomStringConvertible {
     // MARK: Stored Properties
-    let lowerLeft: CLLocationCoordinate2D
-    let upperRight: CLLocationCoordinate2D
+    public let lowerLeft: CLLocationCoordinate2D
+    public let upperRight: CLLocationCoordinate2D
     
     // MARK: Computed Properties
-    var consecutiveGrids: [ConsecutiveGrids] {
+    public var consecutiveGrids: [ConsecutiveGrids] {
         return [self]
     }
-    var grids: [Grid] {
+    public var grids: [Grid] {
         var result: [Grid] = []
         
         let minLatitude: Int = Int(lowerLeft.latitude * 100.0)
@@ -102,8 +102,8 @@ struct ConsecutiveGrids: Grids, ExpressibleByStringLiteral, CustomStringConverti
     }
     
     // MARK: ExpressibleByStringLiteral
-    typealias StringLiteralType = String
-    init(stringLiteral: String) {
+    public typealias StringLiteralType = String
+    public init(stringLiteral: String) {
         let latlng = stringLiteral.characters.split(separator: ":").map { String($0) }
         guard latlng.count == 2 else {
             lowerLeft = CLLocationCoordinate2D(latitude: 0.0, longitude: 0.0)
@@ -125,7 +125,7 @@ struct ConsecutiveGrids: Grids, ExpressibleByStringLiteral, CustomStringConverti
     }
     
     // MARK: CustomStringConvertible
-    var description: String {
+    public var description: String {
         var roundedRange = (latitude: (min: "", max: ""), longitude: (min: "", max: ""))
         roundedRange.latitude = (min: String(format: "%.02f", lowerLeft.latitude), max: String(format: "%.02f", upperRight.latitude))
         roundedRange.longitude = (min: String(format: "%.02f", lowerLeft.longitude), max: String(format: "%.02f", upperRight.longitude))
@@ -140,30 +140,31 @@ struct ConsecutiveGrids: Grids, ExpressibleByStringLiteral, CustomStringConverti
     }
     
     // MARK: 不會用到的 Protocol（從單一字元初始化）
-    typealias UnicodeScalarLiteralType = String
-    typealias ExtendedGraphemeClusterLiteralType = String
-    init(extendedGraphemeClusterLiteral: String) { fatalError() }
-    init(unicodeScalarLiteral: String) { fatalError() }
+    public typealias UnicodeScalarLiteralType = String
+    public typealias ExtendedGraphemeClusterLiteralType = String
+    public init(extendedGraphemeClusterLiteral: String) { fatalError() }
+    public init(unicodeScalarLiteral: String) { fatalError() }
 }
 
 /// 用來表示方格
-struct Grid: Grids, CustomStringConvertible {
+public struct Grid: Grids, CustomStringConvertible {
     // MARK: Stored Properties
-    let location: CLLocationCoordinate2D
+    public let location: CLLocationCoordinate2D
     
     // MARK: Computed Properties
-    var consecutiveGrids: [ConsecutiveGrids] {
+    public var consecutiveGrids: [ConsecutiveGrids] {
         return [ ConsecutiveGrids(__coordinate: location) ]
     }
-    var grids: [Grid] {
+    public var grids: [Grid] {
         return [self]
     }
     
-    init(latitude: CLLocationDegrees, longitude: CLLocationDegrees) {
+    public init(latitude: CLLocationDegrees, longitude: CLLocationDegrees) {
         location = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
     
     // MARK: CustomStringConvertible
+    public
     var description: String {
         return String(format: "%.02f:%.02f", location.latitude, location.longitude)
     }

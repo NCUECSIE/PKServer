@@ -102,6 +102,9 @@ public enum PKServerError: Swift.Error {
     /// 不能移除最後一個社群登入方法
     case cannotRemoveLastLink
     
+    /// 找不到資源
+    case notFound
+    
     var localizedDescription: String {
         switch self {
         case .databaseNotConnected:
@@ -136,6 +139,8 @@ public enum PKServerError: Swift.Error {
             return "You are unauthorized to \(action)"
         case .cannotRemoveLastLink:
             return "You cannot remove the last social login."
+        case .notFound:
+            return "The resource you requested is not found."
         }
     }
     
@@ -154,13 +159,13 @@ public enum PKServerError: Swift.Error {
         case .linkExisted: fallthrough
         case .linkDoesNotExist:
             return (.badRequest, self.localizedDescription, errorCode)
-        
         case .requiresAuthentication(_): fallthrough
         case .badToken: fallthrough
         case .tokenExpired: fallthrough
         case .unauthorized(_):
             return (.unauthorized, self.localizedDescription, errorCode)
-        
+        case .notFound:
+            return (.notFound, self.localizedDescription, errorCode)
         default:
             return (.internalServerError, self.localizedDescription, errorCode)
         }
@@ -206,6 +211,8 @@ public enum PKServerError: Swift.Error {
             return 1000
         case .unknown(_):
             return 1001
+        case .notFound:
+            return 1002
         }
     }
 }

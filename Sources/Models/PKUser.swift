@@ -1,6 +1,7 @@
 import Foundation
 import Security
 import MongoKitten
+import SwiftyJSON
 import BSON
 import PKAutoSerialization
 
@@ -109,6 +110,10 @@ public struct PKToken: PKObjectReflectionSerializable {
 }
 
 public struct PKUser: PKModel {
+    public var detailedJSON: JSON {
+        fatalError()
+    }
+
     /// 唯一識別碼
     public let _id: ObjectId?
     
