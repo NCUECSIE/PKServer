@@ -47,9 +47,9 @@ public struct PKSpace: PKModel {
     public let _id: ObjectId?
     
     // MARK: 資料
-    public var provider: PKDbRef<PKProvider>
+    public let provider: PKDbRef<PKProvider>
     public let location: CLLocationCoordinate2D
-    public let markings: String
+    public var markings: String
     public var fee: Fee
     
     /// 從資料庫初始化

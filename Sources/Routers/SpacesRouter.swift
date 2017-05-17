@@ -2,6 +2,7 @@ import Kitura
 import KituraNet
 import MongoKitten
 import SwiftyJSON
+import LoggerAPI
 
 import Common
 import Models
@@ -39,19 +40,113 @@ internal struct SpacesActions {
     }
     
     static func read(in grid: NonConsecutiveGrids, completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
+        let collection = PKResourceManager.shared.database["spaces"]
+        
+        
+        let gridsQuery = [
+            "$or": grid.consecutiveGrids.map({ consecutiveGrid -> Query in
+                [
+                    "$and": [
+                        [ "longitude": [ "$gte":  consecutiveGrid.lowerLeft.longitude ] ],
+                        [ "longitude": [ "$lt": consecutiveGrid.upperRight.longitude ] ],
+                        [ "latitude": [ "$gte": consecutiveGrid.lowerLeft.latitude ] ],
+                        [ "latitude": [ "$lt": consecutiveGrid.lowerLeft.latitude ] ]
+                    ]
+                ]
+            })
+        ] as Query
+        
+        do {
+            var hasDeserializeError = false
+            let spaces = try collection.find(gridsQuery).map({ (document: Document) -> PKSpace in
+                guard let space = PKSpace.deserialize(from: document) else {
+                    hasDeserializeError = true
+                    return PKSpace(provider: ObjectId(0)!, latitude: 0.0, longitude: 0.0, markings: "", fee: Fee(span: 0, charge: 0))
+                }
+                return space
+            })
+            
+            if hasDeserializeError {
+                completionHandler(nil, PKServerError.deserialization(data: "Space", while: "deserializing BSON documents to Swift structures"))
+            } else {
+                let payload = spaces.map { $0.simpleJSON }
+                
+                completionHandler(JSON(payload), nil)
+            }
+        } catch {
+            completionHandler(nil, .database(while: "reading all documents in a collection"))
+        }
+        
         
     }
     
     static func read(id: ObjectId, completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
+        let collection = PKResourceManager.shared.database["spaces"]
         
+        do {
+            guard let document = try collection.findOne("_id" == id) else {
+                completionHandler(nil, PKServerError.notFound)
+                return
+            }
+            
+            if let space = document.to(PKSpace.self) {
+                completionHandler(space.detailedJSON, nil)
+            } else {
+                completionHandler(nil, PKServerError.deserialization(data: "Space", while: "deserializing from database"))
+            }
+        } catch {
+            completionHandler(nil, PKServerError.database(while: "reading a space"))
+        }
     }
     
-    static func update(id: ObjectId, with json: JSON, completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
+    static func update(id: ObjectId, with json: JSON, completionHandler: (_ error: PKServerError?) -> Void) {
+        let collection = PKResourceManager.shared.database["spaces"]
+        var space: PKSpace! = nil
         
+        do {
+            guard let document = try collection.findOne("_id" == id) else {
+                completionHandler(PKServerError.notFound)
+                return
+            }
+            if let s = document.to(PKSpace.self) {
+                space = s
+            } else {
+                completionHandler(PKServerError.deserialization(data: "Space", while: "deserializing from database"))
+                return
+            }
+        } catch {
+            completionHandler(PKServerError.database(while: "updating space"))
+            return
+        }
+        
+        if let markings = json["markings"].string {
+            space.markings = markings
+        } else if let _ = json["markings"].null {
+            space.markings = ""
+        }
+        
+        do {
+            let _ = try collection.findAndUpdate("_id" == id, with: Document(space))
+            completionHandler(nil)
+        } catch {
+            completionHandler(PKServerError.database(while: "updating space"))
+        }
     }
     
     static func delete(id: ObjectId, completionHandler: (_ error: PKServerError?) -> Void) {
+        let collection = PKResourceManager.shared.database["spaces"]
         
+        // TODO: If any events are on the space, server should react
+        Log.warning("Feature not yet implemented, checking")
+        
+        do {
+            let _ = try collection.findAndRemove("_id" == id)
+            completionHandler(nil)
+            return
+        } catch {
+            completionHandler(PKServerError.database(while: "deleting spaces"))
+            return
+        }
     }
 }
 
