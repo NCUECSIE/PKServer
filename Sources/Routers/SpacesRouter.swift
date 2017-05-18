@@ -8,14 +8,17 @@ import Common
 import Models
 import ResourceManager
 import Utilities
+import Middlewares
+
+// TODO: Should agents populate fee for the space?
 
 internal struct SpacesActions {
     static func create(latitude: Double, longitude: Double, markings: String,
-                       charge: Double, span: Double, providerId: ObjectId,
+                       charge: Double, unitTime: Double, providerId: ObjectId,
                        completionHandler: (_ insertedId: ObjectId?, _ error: PKServerError?) -> Void) {
         let Providers = PKResourceManager.shared.database["providers"]
         let collection = PKResourceManager.shared.database["spaces"]
-        let space = PKSpace(provider: providerId, latitude: latitude, longitude: longitude, markings: markings, fee: Fee(span: span, charge: charge))
+        let space = PKSpace(provider: providerId, latitude: latitude, longitude: longitude, markings: markings, fee: Fee(unitTime: unitTime, charge: charge))
         
         // 檢查 Provider 是否存在
         do {
@@ -61,7 +64,7 @@ internal struct SpacesActions {
             let spaces = try collection.find(gridsQuery).map({ (document: Document) -> PKSpace in
                 guard let space = PKSpace.deserialize(from: document) else {
                     hasDeserializeError = true
-                    return PKSpace(provider: ObjectId(0)!, latitude: 0.0, longitude: 0.0, markings: "", fee: Fee(span: 0, charge: 0))
+                    return PKSpace(provider: ObjectId(0)!, latitude: 0.0, longitude: 0.0, markings: "", fee: Fee(unitTime: 0, charge: 0))
                 }
                 return space
             })
@@ -153,6 +156,133 @@ internal struct SpacesActions {
 public func spacesRouter() -> Router {
     let router = Router()
     
+    router.post(handler: { req, res, next in
+        guard let body = req.body?.asJSON,
+            let providerIdString = body["providerId"].string,
+            let providerId = try? ObjectId(providerIdString) else {
+                throw PKServerError.missingBody(fields: [])
+        }
+        
+        try AuthenticationMiddleware.mustBeAuthenticated(to: "create new space", as: [.agent(provider: providerId, access: .readWrite)])(req, res, next)
+    }, { req, res, next in
+        guard let body = req.body?.asJSON,
+            let providerIdString = body["providerId"].string,
+            let providerId = try? ObjectId(providerIdString),
+            let longitude = body["longitude"].double,
+            let latitude = body["latitude"].double,
+            let markings = body["markings"].string,
+            let charge = body["charge"].double,
+            let unitTime = body["unitTime"].double else {
+                throw PKServerError.missingBody(fields: [])
+        }
+        
+        SpacesActions.create(latitude: latitude, longitude: longitude, markings: markings, charge: charge, unitTime: unitTime, providerId: providerId) { insertedId, error in
+            if let error = error {
+                res.error = error
+                next()
+            } else {
+                res.send(insertedId!.hexString)
+            }
+        }
+    })
+    
+    router.get(handler: { req, res, next in
+        guard let gridString = req.queryParameters["grids"] else {
+            throw PKServerError.notFound
+        }
+        
+        let nonConsecutiveGrids = NonConsecutiveGrids(stringLiteral: gridString)
+        if nonConsecutiveGrids.count == 0 || nonConsecutiveGrids.count > 100 {
+            throw PKServerError.unauthorized(to: "get this many grids")
+        }
+        
+        SpacesActions.read(in: nonConsecutiveGrids) { json, error in
+            if let error = error {
+                res.error = error
+                next()
+            } else {
+                res.send(json: json!)
+            }
+        }
+    })
+    
+    router.get(":id", handler: { req, res, next in
+        guard let idString = req.parameters["id"],
+            let id = try? ObjectId(idString) else {
+            throw PKServerError.deserialization(data: "ObjectId", while: "reading route parameter")
+        }
+        
+        SpacesActions.read(id: id) { json, error in
+            if let error = error {
+                res.error = error
+                next()
+            } else {
+                res.send(json: json!)
+            }
+        }
+    })
+    
+    router.patch(":id", handler: { req, res, next in
+        guard let spaceId = try? ObjectId(req.parameters["id"]!) else {
+                throw PKServerError.deserialization(data: "ObjectId", while: "reading route parameter")
+        }
+        
+        let collection = req.database["spaces"]
+        do {
+            guard let space = try collection.findOne("_id" == spaceId).to(PKSpace.self) else {
+                res.error = PKServerError.notFound
+                next()
+                return
+            }
+            
+            let providerId = space.provider._id
+            try AuthenticationMiddleware.mustBeAuthenticated(to: "update new space", as: [.agent(provider: providerId, access: .readWrite)])(req, res, next)
+        } catch {
+            throw PKServerError.database(while: "retrieving space data for identifying provider")
+        }
+    }, { req, res, next in
+        guard let body = req.body?.asJSON else {
+                throw PKServerError.missingBody(fields: [])
+        }
+        
+        SpacesActions.update(id: try! ObjectId(req.parameters["id"]!), with: body) { error in
+            if let error = error {
+                res.error = error
+                next()
+            } else {
+                res.send("")
+            }
+        }
+    })
+    
+    router.delete(":id", handler: { req, res, next in
+        guard let spaceId = try? ObjectId(req.parameters["id"]!) else {
+            throw PKServerError.deserialization(data: "ObjectId", while: "reading route parameter")
+        }
+        
+        let collection = req.database["spaces"]
+        do {
+            guard let space = try collection.findOne("_id" == spaceId).to(PKSpace.self) else {
+                res.error = PKServerError.notFound
+                next()
+                return
+            }
+            
+            let providerId = space.provider._id
+            try AuthenticationMiddleware.mustBeAuthenticated(to: "delete space", as: [.agent(provider: providerId, access: .readWrite)])(req, res, next)
+        } catch {
+            throw PKServerError.database(while: "retrieving space data for identifying provider")
+        }
+    }, { req, res, next in
+        SpacesActions.delete(id: try! ObjectId(req.parameters["id"]!)) { error in
+            if let error = error {
+                res.error = error
+                next()
+            } else {
+                res.send("")
+            }
+        }
+    })
     
     return router
 }

@@ -4,20 +4,20 @@ import BSON
 import SwiftyJSON
 
 public struct Fee: PKObjectReflectionSerializable {
-    public var span: TimeInterval
+    public var unitTime: TimeInterval
     public var charge: Double
     
-    public init(span s: TimeInterval, charge c: Double) {
-        span = s
+    public init(unitTime ut: TimeInterval, charge c: Double) {
+        unitTime = ut
         charge = c
     }
     public static func deserialize(from primitive: Primitive) -> Fee? {
-        guard let document = primitive.toDocument(requiredKeys: ["span, charge"]),
-              let s = document["span"].to(Double.self),
+        guard let document = primitive.toDocument(requiredKeys: ["unitTime", "charge"]),
+              let s = document["unitTime"].to(Double.self),
               let c = document["charge"].to(Double.self) else {
             return nil
         }
-        return Fee(span: s, charge: c)
+        return Fee(unitTime: s, charge: c)
     }
 }
 
@@ -25,21 +25,19 @@ public struct PKSpace: PKModel {
     public var simpleJSON: JSON {
         return [
             "_id": _id!.hexString,
-            "longitude": location.longitude,
-            "latitude": location.latitude
+            "location": [ "longitude": location.longitude,
+                          "latitude": location.latitude ]
         ]
     }
     public var detailedJSON: JSON {
         return [
             "_id": _id!.hexString,
             "providerId": provider._id.hexString,
-            "longitude": location.longitude,
-            "latitude": location.latitude,
+            "location": [ "longitude": location.longitude,
+                          "latitude": location.latitude ],
             "markings": markings,
-            "fee": [
-                "charge": fee.charge,
-                "span": fee.span
-            ] as JSON
+            "fee": [ "charge": fee.charge,
+                     "unitTime": fee.unitTime ]
         ]
     }
 

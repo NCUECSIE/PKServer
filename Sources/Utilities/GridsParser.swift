@@ -12,6 +12,7 @@ import CoreLocation
 public protocol Grids: Sequence {
     var consecutiveGrids: [ConsecutiveGrids] { get }
     var grids: [Grid] { get }
+    var count: Int { get }
 }
 
 // MARK: Sequence Conformance
@@ -50,6 +51,9 @@ public struct NonConsecutiveGrids: Grids, ExpressibleByStringLiteral, CustomStri
     // MARK: Computed Properties
     public var grids: [Grid] {
         return consecutiveGrids.map({ $0.grids }).reduce([], { $0 + $1 })
+    }
+    public var count: Int {
+        return grids.reduce(0, { $0 + $1.count })
     }
     
     // MARK: ExpressibleByStringLiteral
@@ -99,6 +103,14 @@ public struct ConsecutiveGrids: Grids, ExpressibleByStringLiteral, CustomStringC
         }
         
         return result
+    }
+    public var count: Int {
+        let minLatitude: Int = Int(lowerLeft.latitude * 100.0)
+        let minLongitude: Int = Int(lowerLeft.longitude * 100.0)
+        let maxLatitude: Int = Int(upperRight.latitude * 100.0)
+        let maxLongitude: Int = Int(upperRight.longitude * 100.0)
+        
+        return (maxLatitude - minLatitude) * (maxLongitude - minLongitude)
     }
     
     // MARK: ExpressibleByStringLiteral
@@ -158,6 +170,7 @@ public struct Grid: Grids, CustomStringConvertible {
     public var grids: [Grid] {
         return [self]
     }
+    public var count: Int { return 1 }
     
     public init(latitude: CLLocationDegrees, longitude: CLLocationDegrees) {
         location = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
