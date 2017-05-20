@@ -21,33 +21,7 @@ class FacebookTests: XCTestCase {
     
     /// Retrieves Test Users and Database Settings
     override class func setUp() {
-        // MARK: 從資料庫載入設定
-        let configurationManager = ConfigurationManager()
-        configurationManager.load(file: "./../../config.json")
-        
-        guard let configs = configurationManager.getConfigs() as? [String: Any],
-            let mongodb = configs["mongodb"] as? [String: Any],
-            let mongodbHost = mongodb["host"] as? String,
-            let mongodbPort = mongodb["port"] as? UInt16,
-            let facebook = configs["facebook"] as? [String: String],
-            let facebookAppId = facebook["appId"],
-            let facebookAppSecret = facebook["secret"] else {
-                XCTFail("No configuration found.")
-                return
-        }
-        
-        let mongodbSettings = ClientSettings(host: MongoHost(hostname: mongodbHost, port: mongodbPort), sslSettings: nil, credentials: nil)
-        
-        guard let server = try? MongoKitten.Server(mongodbSettings) else {
-            XCTFail("Connection to MongoDB failed.")
-            return
-        }
-        
-        let number = arc4random()
-        let dbName = "__\(number)__parking_unit_test"
-        database = server[dbName]
-        
-        _ = PKResourceManager(mongoClientSettings: mongodbSettings, databaseName: dbName, config: PKSharedConfig(facebookAppId: facebookAppId, facebookClientAccessToken: "", facebookSecret: facebookAppSecret))
+        FacebookTests.database = try! createTestDatabaseAndResourceManager()
         
         // MARK: 從 Facebook 取得測試使用者資料
         let dispatchGroup = DispatchGroup()
@@ -58,6 +32,10 @@ class FacebookTests: XCTestCase {
             XCTFail("Failed to create URL that will be used to retrieve app access token")
             return
         }
+        
+        let facebookAppId = PKResourceManager.shared.config.facebookAppId
+        let facebookAppSecret = PKResourceManager.shared.config.facebookSecret
+        
         urlBuilder.queryItems = [ URLQueryItem(name: "client_id", value: facebookAppId),
                                   URLQueryItem(name: "client_secret", value: facebookAppSecret),
                                   URLQueryItem(name: "grant_type", value: "client_credentials") ]

@@ -18,7 +18,7 @@ internal struct ProviderActions {
     ///   - completionHandler: 完成或是發生錯誤所呼叫的回呼
     ///   - insertedId: 若成功，新的唯一識別碼
     ///   - error: 若過程發生錯誤，錯誤物件
-    static func _create(name: String, type: PKProviderType, completionHandler: (_ insertedId: String?,_ error: PKServerError?) -> Void) {
+    static func create(name: String, type: PKProviderType, completionHandler: (_ insertedId: String?,_ error: PKServerError?) -> Void) {
         let provider = PKProvider(name: name, type: type)
         let document = Document(provider)
         
@@ -36,7 +36,7 @@ internal struct ProviderActions {
         }
     }
     
-    static func _read(completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
+    static func read(completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
         let collection = PKResourceManager.shared.database["providers"]
         
         do {
@@ -61,7 +61,7 @@ internal struct ProviderActions {
         }
     }
     
-    static func _read(id: ObjectId, completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
+    static func read(id: ObjectId, completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
         let collection = PKResourceManager.shared.database["providers"]
         do {
             guard let document = try collection.findOne("_id" == id) else {
@@ -79,7 +79,7 @@ internal struct ProviderActions {
         }
     }
     
-    static func _update(id: ObjectId, update: JSON, by: PKTokenScope, completionHandler: (_ error: PKServerError?) -> Void) {
+    static func update(id: ObjectId, update: JSON, by: PKTokenScope, completionHandler: (_ error: PKServerError?) -> Void) {
         let collection = PKResourceManager.shared.database["providers"]
         var provider: PKProvider! = nil
         
@@ -161,6 +161,25 @@ internal struct ProviderActions {
         
         completionHandler(nil)
     }
+    
+    static func readSpaces(in provider: ObjectId, completionHandler: (_ spaces: JSON?, _ error: PKServerError?) -> Void) {
+        let spacesCollection = PKResourceManager.shared.database["spaces"]
+        
+        do {
+            let spaces = try spacesCollection.find("provider.$id" == provider).map({ space -> JSON in
+                guard let space = PKProvider.deserialize(from: space)?.detailedJSON else {
+                    throw PKServerError.deserialization(data: "Provider", while: "deserializing document from MongoDB")
+                }
+                return space
+            })
+            
+            completionHandler(JSON(arrayLiteral: spaces), nil)
+        } catch PKServerError.deserialization(data: let s, while: let w) {
+            completionHandler(nil, .deserialization(data: s, while: w))
+        } catch {
+            completionHandler(nil, .database(while: "fetching data from MongoDB"))
+        }
+    }
 }
 
 public func providersRouter() -> Router {
@@ -175,7 +194,7 @@ public func providersRouter() -> Router {
                 throw PKServerError.missingBody(fields: [])
         }
         
-        ProviderActions._create(name: name, type: type) { insertedId, error in
+        ProviderActions.create(name: name, type: type) { insertedId, error in
             if let error = error {
                 res.error = error
                 next()
@@ -187,7 +206,7 @@ public func providersRouter() -> Router {
     
     // 取得所有的提供者必須為管理員
     router.get("", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "read provider information", as: [PKUserType.admin(access: .readOnly)]), { req, res, next in
-        ProviderActions._read { json, error in
+        ProviderActions.read { json, error in
             if let error = error {
                 res.error = error
                 next()
@@ -204,7 +223,7 @@ public func providersRouter() -> Router {
                 throw PKServerError.deserialization(data: "ObjectId", while: "converting URL parameter")
         }
         
-        ProviderActions._read(id: oid) { json, error in
+        ProviderActions.read(id: oid) { json, error in
             if let error = error {
                 res.error = error
                 next()
@@ -213,6 +232,36 @@ public func providersRouter() -> Router {
             }
         }
     }
+    
+    router.get(":id/spaces", handler: { req, res, next in
+        // 取得 Id
+        guard let idString = req.parameters["id"],
+            let id = try? ObjectId(idString) else {
+                throw PKServerError.deserialization(data: "ObjectId", while: "converting URL parameter")
+        }
+        
+        req.userInfo["id"] = id
+        
+        // 先進行驗證！
+        let allowed = [PKUserType.admin(access: .readOnly), PKUserType.agent(provider: id, access: .readOnly)]
+        let middleware = AuthenticationMiddleware.mustBeAuthenticated(to: "read provider information", as: allowed)
+        do {
+            try middleware(req, res, next)
+        } catch {
+            res.error = error
+            next()
+        }
+    }, { req, res, next in
+        let id = req.userInfo["id"] as! ObjectId
+        ProviderActions.readSpaces(in: id) { json, error in
+            if let error = error {
+                res.error = error
+                next()
+            } else {
+                res.send(json: json!)
+            }
+        }
+    })
     
     // 只有管理員、提供者可以更新資料
     router.patch(":id", handler: { req, res, next in
@@ -228,9 +277,7 @@ public func providersRouter() -> Router {
         let allowed = [PKUserType.admin(access: .readWrite), PKUserType.agent(provider: id, access: .readWrite)]
         let middleware = AuthenticationMiddleware.mustBeAuthenticated(to: "update provider information", as: allowed)
         do {
-            try middleware(req, res) {
-                next()
-            }
+            try middleware(req, res, next)
         } catch {
             res.error = error
             next()
@@ -250,7 +297,7 @@ public func providersRouter() -> Router {
             tokenScope = PKTokenScope.agent(provider: id)
         }
         
-        ProviderActions._update(id: id, update: json, by: tokenScope) { err in
+        ProviderActions.update(id: id, update: json, by: tokenScope) { err in
             if let err = err {
                 res.error = err
                 next()
@@ -273,9 +320,7 @@ public func providersRouter() -> Router {
         let allowed = [PKUserType.admin(access: .readWrite), PKUserType.agent(provider: id, access: .readWrite)]
         let middleware = AuthenticationMiddleware.mustBeAuthenticated(to: "delete provider information", as: allowed)
         do {
-            try middleware(req, res) {
-                next()
-            }
+            try middleware(req, res, next)
         } catch {
             res.error = error
             next()

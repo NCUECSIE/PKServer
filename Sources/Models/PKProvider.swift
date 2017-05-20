@@ -14,11 +14,12 @@ public struct PKContactInformation: PKObjectReflectionSerializable {
     
     public static func deserialize(from primitive: Primitive) -> PKContactInformation? {
         guard let document = primitive.toDocument(requiredKeys: ["phone", "email", "address"]),
-              let p = document["phone"].to(String?.self),
-              let e = document["email"].to(String?.self),
-              let a = document["address"].to(String?.self) else {
+              let p = Optional<String>.deserialize(from: document["phone"]!),
+              let e = Optional<String>.deserialize(from: document["email"]!),
+              let a = Optional<String>.deserialize(from: document["address"]!) else {
                 return nil
         }
+        
         return PKContactInformation(phone: p, email: e, address: a)
     }
 }
@@ -37,10 +38,10 @@ public struct PKProvider: PKModel {
             "type": type.rawValue,
             "name": name,
             "contactInformation": [
-                "phone": contactInformation.phone ?? "",
-                "email": contactInformation.email ?? "",
-                "address": contactInformation.address ?? ""
-            ] as JSON
+                "phone": contactInformation.phone,
+                "email": contactInformation.email,
+                "address": contactInformation.address
+            ]
         ]
     }
     
