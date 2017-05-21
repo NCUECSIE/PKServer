@@ -21,8 +21,8 @@ class ProvidersRouterTests: XCTestCase {
     
     override class func tearDown() {
         do {
-            // try database["providers"].drop()
-            // try database["spaces"].drop()
+            try database["providers"].drop()
+            try database["spaces"].drop()
         } catch {
             XCTFail("復原資料庫")
         }
