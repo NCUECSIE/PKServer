@@ -4,6 +4,10 @@ import XCTest
 import ResourceManager
 
 func createTestDatabaseAndResourceManager() throws -> MongoKitten.Database {
+    if PKResourceManager.shared != nil {
+        return PKResourceManager.shared.database
+    }
+    
     // MARK: 從資料庫載入設定
     let configurationManager = ConfigurationManager()
     configurationManager.load(file: "./../../config.json")
@@ -26,9 +30,18 @@ func createTestDatabaseAndResourceManager() throws -> MongoKitten.Database {
         throw NSError()
     }
     
+    do {
+        let databases = try server.getDatabases()
+        for database in databases where database.name.hasSuffix("__parking_unit_test") {
+            try database.drop()
+        }
+    } catch {
+        XCTFail("failed to remove all unit testing database prior to testing")
+    }
+    
+    // Support for multiple tests to run sequentially
     let number = arc4random()
     let dbName = "__\(number)__parking_unit_test"
-    
     _ = PKResourceManager(mongoClientSettings: mongodbSettings, databaseName: dbName, config: PKSharedConfig(facebookAppId: facebookAppId, facebookClientAccessToken: "", facebookSecret: facebookAppSecret))
     
     return server[dbName]

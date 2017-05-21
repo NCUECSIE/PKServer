@@ -15,7 +15,7 @@ import Middlewares
 internal struct SpacesActions {
     static func create(latitude: Double, longitude: Double, markings: String,
                        charge: Double, unitTime: Double, providerId: ObjectId,
-                       completionHandler: (_ insertedId: ObjectId?, _ error: PKServerError?) -> Void) {
+                       completionHandler: (_ insertedId: String?, _ error: PKServerError?) -> Void) {
         let Providers = PKResourceManager.shared.database["providers"]
         let collection = PKResourceManager.shared.database["spaces"]
         let space = PKSpace(provider: providerId, latitude: latitude, longitude: longitude, markings: markings, fee: Fee(unitTime: unitTime, charge: charge))
@@ -25,9 +25,11 @@ internal struct SpacesActions {
             if try Providers.findOne("_id" == providerId) == nil {
                 // 沒有找到
                 completionHandler(nil, PKServerError.notFound)
+                return
             }
         } catch {
             completionHandler(nil, PKServerError.database(while: "checking if the provider exist"))
+            return
         }
         
         do {
@@ -36,7 +38,7 @@ internal struct SpacesActions {
                 completionHandler(nil, PKServerError.deserialization(data: "ObjectId", while: "reading response from MongoKitten"))
                 return
             }
-            completionHandler(insertedId, nil)
+            completionHandler(insertedId.hexString, nil)
         } catch {
             completionHandler(nil, PKServerError.database(while: "inserting new document"))
         }
@@ -45,23 +47,29 @@ internal struct SpacesActions {
     static func read(in grid: NonConsecutiveGrids, completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
         let collection = PKResourceManager.shared.database["spaces"]
         
-        
-        let gridsQuery = [
-            "$or": grid.consecutiveGrids.map({ consecutiveGrid -> Query in
-                [
-                    "$and": [
-                        [ "longitude": [ "$gte":  consecutiveGrid.lowerLeft.longitude ] ],
-                        [ "longitude": [ "$lt": consecutiveGrid.upperRight.longitude ] ],
-                        [ "latitude": [ "$gte": consecutiveGrid.lowerLeft.latitude ] ],
-                        [ "latitude": [ "$lt": consecutiveGrid.lowerLeft.latitude ] ]
-                    ]
+        let gridsQuery = grid.consecutiveGrids.map {
+            grids in
+            [
+                "location.coordinates.0": [
+                    "$gte": grids.lowerLeft.longitude,
+                    "$lt": grids.upperRight.longitude.nextDown
+                ],
+                "location.coordinates.1": [
+                    "$gte": grids.lowerLeft.latitude,
+                    "$lt": grids.upperRight.latitude.nextDown
                 ]
-            })
-        ] as Query
+            ]
+        }
+        
+        let query: Query = [
+            "$or": gridsQuery
+        ]
+        
+        print(query)
         
         do {
             var hasDeserializeError = false
-            let spaces = try collection.find(gridsQuery).map({ (document: Document) -> PKSpace in
+            let spaces = try collection.find(query).map({ (document: Document) -> PKSpace in
                 guard let space = PKSpace.deserialize(from: document) else {
                     hasDeserializeError = true
                     return PKSpace(provider: ObjectId(0)!, latitude: 0.0, longitude: 0.0, markings: "", fee: Fee(unitTime: 0, charge: 0))
@@ -77,7 +85,7 @@ internal struct SpacesActions {
                 completionHandler(JSON(payload), nil)
             }
         } catch {
-            completionHandler(nil, .database(while: "reading all documents in a collection"))
+            completionHandler(nil, .database(while: "querying documents in a collection"))
         }
         
         
@@ -181,7 +189,7 @@ public func spacesRouter() -> Router {
                 res.error = error
                 next()
             } else {
-                res.send(insertedId!.hexString)
+                res.send(insertedId!)
             }
         }
     })

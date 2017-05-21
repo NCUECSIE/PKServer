@@ -142,12 +142,13 @@ internal struct ProviderActions {
         let providersCollection = PKResourceManager.shared.database["providers"]
         
         do {
-            let spacesInProvider = try spacesCollection.find([ "provider": [ "$elemMatch": [ "$id": id ] ] ])
-            if try spacesInProvider.count() > 0 {
+            let spacesInProvider = try spacesCollection.count([ "provider.$id": id ])
+            if spacesInProvider > 0 {
                 completionHandler(PKServerError.unknown(description: "There are currently spaces in your provider. Please remove them first!"))
                 return
             }
         } catch {
+            print(error)
             completionHandler(.database(while: "checking if there are spaces in the provider"))
             return
         }
@@ -167,13 +168,13 @@ internal struct ProviderActions {
         
         do {
             let spaces = try spacesCollection.find("provider.$id" == provider).map({ space -> JSON in
-                guard let space = PKProvider.deserialize(from: space)?.detailedJSON else {
-                    throw PKServerError.deserialization(data: "Provider", while: "deserializing document from MongoDB")
+                guard let space = PKSpace.deserialize(from: space)?.detailedJSON else {
+                    throw PKServerError.deserialization(data: "Provider", while: "deserializing document from database")
                 }
                 return space
             })
             
-            completionHandler(JSON(arrayLiteral: spaces), nil)
+            completionHandler(JSON(spaces), nil)
         } catch PKServerError.deserialization(data: let s, while: let w) {
             completionHandler(nil, .deserialization(data: s, while: w))
         } catch {

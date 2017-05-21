@@ -101,12 +101,11 @@ class FacebookTests: XCTestCase {
         _ = dispatchGroup.wait(timeout: DispatchTime(uptimeNanoseconds: DispatchTime.now().uptimeNanoseconds + 10_000_000_000))
     }
     
-    /// Drops Database
     override class func tearDown() {
         do {
-            try database.drop()
+            try database["users"].drop()
         } catch {
-            XCTFail("Test database cannot be dropped, database name: \(database.name)")
+            XCTFail("復原資料庫")
         }
     }
     

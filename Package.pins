@@ -5,7 +5,7 @@
       "package": "BSON",
       "reason": null,
       "repositoryURL": "https://github.com/OpenKitten/BSON.git",
-      "version": "5.0.3"
+      "version": "5.0.5"
     },
     {
       "package": "CCurl",
@@ -41,7 +41,7 @@
       "package": "Cryptor",
       "reason": null,
       "repositoryURL": "https://github.com/IBM-Swift/BlueCryptor.git",
-      "version": "0.8.12"
+      "version": "0.8.13"
     },
     {
       "package": "HeliumLogger",
@@ -77,7 +77,7 @@
       "package": "Kitura-net",
       "reason": null,
       "repositoryURL": "https://github.com/IBM-Swift/Kitura-net.git",
-      "version": "1.7.5"
+      "version": "1.7.6"
     },
     {
       "package": "LoggerAPI",
@@ -89,19 +89,19 @@
       "package": "MongoKitten",
       "reason": null,
       "repositoryURL": "https://github.com/OpenKitten/MongoKitten.git",
-      "version": "4.0.0"
+      "version": "4.0.4"
     },
     {
       "package": "PKAutoSerialization",
       "reason": null,
       "repositoryURL": "https://github.com/NCUECSIE/PKAutoSerialization.git",
-      "version": "1.0.2"
+      "version": "1.0.3"
     },
     {
       "package": "SSLService",
       "reason": null,
       "repositoryURL": "https://github.com/IBM-Swift/BlueSSLService.git",
-      "version": "0.12.33"
+      "version": "0.12.34"
     },
     {
       "package": "Schrodinger",
@@ -113,7 +113,7 @@
       "package": "Socket",
       "reason": null,
       "repositoryURL": "https://github.com/IBM-Swift/BlueSocket.git",
-      "version": "0.12.47"
+      "version": "0.12.49"
     },
     {
       "package": "SwiftRedis",
