@@ -79,7 +79,7 @@ public enum PKServerError: Swift.Error {
     ///
     ///   例如：
     ///   ```
-    ///   PKServerError.requiredAuthentication(action: "creating a social link")
+    ///   PKServerError.requiredAuthentication(action: "creating a social strategy")
     ///   ```
     case requiresAuthentication(action: String)
     
@@ -92,15 +92,15 @@ public enum PKServerError: Swift.Error {
     case badToken
     
     /// 增加 Social 登入時，遇到已經在帳號中或是由其他帳號擁有的登入方法
-    case linkExisted
+    case strategyExisted
     
     /// 移除 Social 登入時，找不到該連結
-    case linkDoesNotExist
+    case strategyDoesNotExist
     
     case unauthorized(to: String)
     
     /// 不能移除最後一個社群登入方法
-    case cannotRemoveLastLink
+    case cannotRemoveLastStrategy
     
     /// 找不到資源
     case notFound
@@ -131,13 +131,13 @@ public enum PKServerError: Swift.Error {
             return "The token you provided is expired, and will be deleted. Please login again."
         case .badToken:
             return "The token you provided is not valid. Please authenticate again."
-        case .linkExisted:
+        case .strategyExisted:
             return "The social account already exists. Please login with that account."
-        case .linkDoesNotExist:
+        case .strategyDoesNotExist:
             return "The social account does not exist on your account."
         case .unauthorized(to: let action):
             return "You are unauthorized to \(action)"
-        case .cannotRemoveLastLink:
+        case .cannotRemoveLastStrategy:
             return "You cannot remove the last social login."
         case .notFound:
             return "The resource you requested is not found."
@@ -155,9 +155,9 @@ public enum PKServerError: Swift.Error {
             } else {
                 return (.badRequest, "Missing the following fields in body: \(fieldsDescription)", errorCode)
             }
-        case .cannotRemoveLastLink: fallthrough
-        case .linkExisted: fallthrough
-        case .linkDoesNotExist:
+        case .cannotRemoveLastStrategy: fallthrough
+        case .strategyExisted: fallthrough
+        case .strategyDoesNotExist:
             return (.badRequest, self.localizedDescription, errorCode)
         case .requiresAuthentication(_): fallthrough
         case .badToken: fallthrough
@@ -201,11 +201,11 @@ public enum PKServerError: Swift.Error {
             return 104
         case .deserialization(_):
             return 105
-        case .linkExisted:
+        case .strategyExisted:
             return 106
-        case .linkDoesNotExist:
+        case .strategyDoesNotExist:
             return 107
-        case .cannotRemoveLastLink:
+        case .cannotRemoveLastStrategy:
             return 108
         case .notImplemented(_):
             return 1000

@@ -135,15 +135,15 @@ enum LoginRequestScope: RawRepresentable {
 }
 
 struct AuthActions {
-    static let providerActions: [PKSocialLoginProvider: PKSocialLoginProviderActions.Type] = [
+    static let providerActions: [PKSocialStrategy: PKSocialLoginProviderActions.Type] = [
         .facebook: FacebookLoginProviderActions.self
     ]
-    static func findUser(with provider: PKSocialLoginProvider, userId: String, in collection: MongoKitten.Collection) throws -> PKUser? {
-        let providerRawValue = provider.rawValue
+    static func findUser(with strategy: PKSocialStrategy, userId: String, in collection: MongoKitten.Collection) throws -> PKUser? {
+        let providerRawValue = strategy.rawValue
         let query = [
-            "links": [ "$elemMatch":
+            "strategies": [ "$elemMatch":
                 [
-                    "provider": providerRawValue,
+                    "strategy": providerRawValue,
                     "userId": userId
                 ]
             ]
@@ -205,7 +205,7 @@ struct AuthActions {
         
         completionHandler(JSON(payload))
     }
-    static func registerOrLogin(strategy: PKSocialLoginProvider, userId: String?, token: String?, scope: LoginRequestScope, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void ) {
+    static func registerOrLogin(strategy: PKSocialStrategy, userId: String?, token: String?, scope: LoginRequestScope, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void ) {
         let collection = PKResourceManager.shared.database["users"]
         let strategyActions = AuthActions.providerActions[strategy]!
         
@@ -235,7 +235,7 @@ struct AuthActions {
                 }
                 
                 // 製造出一般使用者
-                user = PKUser(initialLink: PKSocialLoginLink(provider: .facebook, userId: userId, accessToken: accessToken))
+                user = PKUser(initialStrategy: PKSocialLoginStrategy(strategy: .facebook, userId: userId, accessToken: accessToken))
                 token = user!.createNewToken(of: .standard)
             } else {
                 switch scope {
@@ -301,7 +301,7 @@ struct AuthActions {
             completionHandler(JSON(stringLiteral: token!.value), nil)
         }
     }
-    static func add(link strategy: PKSocialLoginProvider, userId: String?, token: String?, to user: PKUser, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void) {
+    static func add(strategy: PKSocialStrategy, userId: String?, token: String?, to user: PKUser, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void) {
         let collection = PKResourceManager.shared.database["users"]
         let strategyActions = AuthActions.providerActions[strategy]!
         
@@ -311,11 +311,11 @@ struct AuthActions {
                 return
             }
             
-            // Link must not exist already!
+            // Strategy must not exist already!
             do {
                 let existing = try AuthActions.findUser(with: strategy, userId: userId, in: collection)
                 if existing != nil {
-                    completionHandler(nil, .linkExisted)
+                    completionHandler(nil, .strategyExisted)
                     return
                 }
             } catch {
@@ -324,7 +324,7 @@ struct AuthActions {
             }
             
             var user = user
-            user.links.append(PKSocialLoginLink(provider: strategy, userId: userId, accessToken: accessToken))
+            user.strategies.append(PKSocialLoginStrategy(strategy: strategy, userId: userId, accessToken: accessToken))
             
             do {
                 _ = try collection.findAndUpdate("_id" == user._id!, with: Document(user))
@@ -336,14 +336,14 @@ struct AuthActions {
             completionHandler("", nil)
         }
     }
-    static func remove(link strategy: PKSocialLoginProvider, userId: String, from user: PKUser, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void) {
+    static func remove(strategy: PKSocialStrategy, userId: String, from user: PKUser, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void) {
         let collection = PKResourceManager.shared.database["users"]
         var user = user
         
-        user.links = user.links.filter { $0.provider != strategy || $0.userId != userId }
+        user.strategies = user.strategies.filter { $0.strategy != strategy || $0.userId != userId }
         
-        if user.links.isEmpty {
-            completionHandler(nil, .cannotRemoveLastLink)
+        if user.strategies.isEmpty {
+            completionHandler(nil, .cannotRemoveLastStrategy)
             return
         }
         
@@ -356,41 +356,35 @@ struct AuthActions {
         
         completionHandler("", nil)
     }
-    static func links(user: PKUser, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void) {
-        let payload = user.links.map { JSON([ "provider": JSON($0.provider.rawValue), "userId": JSON($0.userId) ]) }
+    static func strategies(user: PKUser, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void) {
+        let payload = user.strategies.map { JSON([ "provider": JSON($0.strategy.rawValue), "userId": JSON($0.userId) ]) }
         completionHandler(JSON(payload), nil)
     }
 }
 
-/**
- 取得認證的路由：
- 
- - 登入（`login`）相關路徑
- 
-   *不必註冊即可登入*
- 
-   + 使用 Facebook（`POST login/facebook`）
- 
-     必須在主體中帶有 `scope` 以及 `accessToken` 兩個鍵
- 
- - 帳號（`account`）
-   - 登入方法（`links`）
-     + 查看（`GET accounts`）
-     + 新增 Facebook（`POST account/links/facebook`）
- 
-       必須在主體中帶有 `scope` 以及 `accessToken` 兩個鍵
- 
-     - 刪除 Facebook（`DELETE account/links/facebook/:facebookUserId`)
-   - 刪除帳號（`DELETE account`）
- 
- */
+///
+/// 提供使用者註冊、登入以及管理登入策略的功能
+/// 
+/// # 路徑
+///
+/// - 註冊、登入 `POST login/*strategy`
+/// - 刪除帳號   `DELETE account`
+/// - 策略管理   `GET account/strategies`
+/// - 新增策略   `POST account/strategies/*strategy`
+/// - 刪除策略   `DELETE account/strategies/facebook/*userId`
+///
+/// # 策略（strategy）
+/// 1. Facebook
+///
+///    必須提供 JSON 主體以及 JSON 鍵 `accessToken`
+///
 public func authRouter() -> Router {
     let router = Router()
     
     /// 解析資訊，傳給 AuthActions 的 registerOrLogin 靜態方法
     router.post("login/:strategy", handler: { request, response, next in
         guard let strategyString = request.parameters["strategy"],
-            let strategy = PKSocialLoginProvider(rawValue: strategyString),
+            let strategy = PKSocialStrategy(rawValue: strategyString),
             let body = request.body?.asJSON,
             let scopeString = body["scope"].string,
             var scope = LoginRequestScope(rawValue: scopeString) else {
@@ -437,7 +431,7 @@ public func authRouter() -> Router {
             _ = response.send(status: .OK)
         }
     })
-    router.all("account/links", allowPartialMatch: true, middleware: linksRouter())
+    router.all("account/strategies", allowPartialMatch: true, middleware: strategiesRouter())
     
     /// 解析資訊，傳給 AuthActions 的 inspect 靜態方法
     router.get(handler: { request, response, next in
@@ -448,21 +442,21 @@ public func authRouter() -> Router {
     return router
 }
 
-fileprivate func linksRouter() -> Router {
+fileprivate func strategiesRouter() -> Router {
     let router = Router()
     
     /// 回傳連結
-    router.get(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "check all social links"), { request, response, next in
+    router.get(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "check all social strategies"), { request, response, next in
         let user = request.user!
-        AuthActions.links(user: user) { json, error in
+        AuthActions.strategies(user: user) { json, error in
             response.send(json: json!)
         }
     })
     
     /// 新增連結
-    router.post(":strategy", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "add social link"), { request, response, next in
+    router.post(":strategy", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "add social strategy"), { request, response, next in
         guard let strategyString = request.parameters["strategy"],
-            let strategy = PKSocialLoginProvider(rawValue: strategyString),
+            let strategy = PKSocialStrategy(rawValue: strategyString),
             let body = request.body?.asJSON else {
                 response.status(HTTPStatusCode.notFound).send("Strategy is not known.")
                 return
@@ -470,7 +464,7 @@ fileprivate func linksRouter() -> Router {
         let userId = body["userId"].string
         let accessToken = body["accessToken"].string
         
-        AuthActions.add(link: strategy, userId: userId, token: accessToken, to: request.user!) { _, error in
+        AuthActions.add(strategy: strategy, userId: userId, token: accessToken, to: request.user!) { _, error in
             if let error = error {
                 response.error = error
                 next()
@@ -482,15 +476,15 @@ fileprivate func linksRouter() -> Router {
     })
     
     /// 刪除連結
-    router.delete(":strategy/:socialId", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "remove social account"), { request, response, next in
+    router.delete(":strategy/:socialId", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "remove social strategy"), { request, response, next in
         guard let strategyString = request.parameters["strategy"],
-            let strategy = PKSocialLoginProvider(rawValue: strategyString),
+            let strategy = PKSocialStrategy(rawValue: strategyString),
             let socialId = request.parameters["socialId"] else {
                 response.status(HTTPStatusCode.notFound).send("Strategy is not known.")
                 return
         }
         
-        AuthActions.remove(link: strategy, userId: socialId, from: request.user!) { _, error in
+        AuthActions.remove(strategy: strategy, userId: socialId, from: request.user!) { _, error in
             if let error = error {
                 response.error = error
                 next()

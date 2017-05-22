@@ -33,28 +33,28 @@ public enum PKUserType: PKEnumReflectionSerializable {
     }
 }
 
-public enum PKSocialLoginProvider: String, PKEnumReflectionSerializable {
+public enum PKSocialStrategy: String, PKEnumReflectionSerializable {
     case facebook = "facebook"
 }
 
-public struct PKSocialLoginLink: PKObjectReflectionSerializable {
-    public let provider: PKSocialLoginProvider
+public struct PKSocialLoginStrategy: PKObjectReflectionSerializable {
+    public let strategy: PKSocialStrategy
     public let userId: String
     public var accessToken: String
     
-    public init(provider p: PKSocialLoginProvider, userId uid: String, accessToken token: String) {
-        provider = p
+    public init(strategy s: PKSocialStrategy, userId uid: String, accessToken token: String) {
+        strategy = s
         userId = uid
         accessToken = token
     }
     
-    public static func deserialize(from primitive: Primitive) -> PKSocialLoginLink? {
-        guard let document = primitive.toDocument(requiredKeys: ["provider", "userId", "accessToken"]),
-              let providerValue = PKSocialLoginProvider.deserialize(from: document["provider"]!),
+    public static func deserialize(from primitive: Primitive) -> PKSocialLoginStrategy? {
+        guard let document = primitive.toDocument(requiredKeys: ["strategy", "userId", "accessToken"]),
+              let strategyValue = PKSocialStrategy.deserialize(from: document["strategy"]!),
               let userIdValue = document["userId"]!.to(String.self),
               let accessTokenValue = document["accessToken"]!.to(String.self) else { return nil }
         
-        return PKSocialLoginLink(provider: providerValue, userId: userIdValue, accessToken: accessTokenValue)
+        return PKSocialLoginStrategy(strategy: strategyValue, userId: userIdValue, accessToken: accessTokenValue)
     }
 }
 
@@ -121,17 +121,20 @@ public struct PKUser: PKModel {
     /// 使用者類型
     public var types: [PKUserType]
     /// 使用者登入方法
-    public var links: [PKSocialLoginLink]
+    public var strategies: [PKSocialLoginStrategy]
     /// APNS 裝置 ID
     public var deviceIds: [String]
+    /// 車輛 ID
+    public var vehicleIds: [String]
     /// 使用者認證代幣
     public var tokens: [PKToken]
     
-    public init(initialLink link: PKSocialLoginLink) {
+    public init(initialStrategy strategy: PKSocialLoginStrategy) {
         _id = nil
         types = [.standard]
-        links = [link]
+        strategies = [strategy]
         deviceIds = []
+        vehicleIds = []
         tokens = []
     }
     
@@ -145,11 +148,12 @@ public struct PKUser: PKModel {
         return token
     }
     
-    private init(_id i: ObjectId, types ty: [PKUserType], links l: [PKSocialLoginLink], deviceIds d: [String], tokens to: [PKToken]) {
+    private init(_id i: ObjectId, types ty: [PKUserType], strategies s: [PKSocialLoginStrategy], deviceIds d: [String], vehicleIds v: [String], tokens to: [PKToken]) {
         _id = i
         types = ty
-        links = l
+        strategies = s
         deviceIds = d
+        vehicleIds = v
         tokens = to
     }
     
@@ -164,13 +168,14 @@ public struct PKUser: PKModel {
     }
     
     public static func deserialize(from primitive: Primitive) -> PKUser? {
-        guard let document = primitive.toDocument(requiredKeys: ["_id", "types", "links", "deviceIds", "tokens"]),
+        guard let document = primitive.toDocument(requiredKeys: ["_id", "types", "strategies", "deviceIds", "vehicleIds", "tokens"]),
               let _idValue = document["_id"]!.to(ObjectId.self),
               let typesValue = document["types"]!.toArray(typed: PKUserType.self),
-              let linksValue = document["links"]!.toArray(typed: PKSocialLoginLink.self),
+              let strategiesValue = document["strategies"]!.toArray(typed: PKSocialLoginStrategy.self),
               let deviceIdsValue = document["deviceIds"]!.toArray(typed: String.self),
+              let vehicleIdsValue = document["vehicleIds"]!.toArray(typed: String.self),
               let tokensValue = document["tokens"]!.toArray(typed: PKToken.self) else { return nil }
-        return PKUser(_id: _idValue, types: typesValue, links: linksValue, deviceIds: deviceIdsValue, tokens: tokensValue)
+        return PKUser(_id: _idValue, types: typesValue, strategies: strategiesValue, deviceIds: deviceIdsValue, vehicleIds: vehicleIdsValue, tokens: tokensValue)
     }
 }
 

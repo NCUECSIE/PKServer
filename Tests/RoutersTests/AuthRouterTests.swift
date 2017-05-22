@@ -142,7 +142,7 @@ class FacebookTests: XCTestCase {
                 }
                 
                 // 1.2.2 檢查臉書權杖
-                let tokenExist = user.links.contains { $0.provider == .facebook && $0.accessToken == facebookToken }
+                let tokenExist = user.strategies.contains { $0.strategy == .facebook && $0.accessToken == facebookToken }
                 XCTAssert(tokenExist, "The registered token does not exist in document")
                 
                 // 1.3 紀錄 PKServer 的使用者 ID
@@ -214,11 +214,11 @@ class FacebookTests: XCTestCase {
         wait(for: expectations, timeout: 10.0)
     }
     
-    func test3_AddLinks() {
+    func test3_AddStrategies() {
         // 將 Facebook 權杖 1 給 0；將 Facebook 權杖 3, 4 給 2
-        // 從 PKServer 的權杖來看，0 應該要有 2 個 Link（0, 1）；2 應該要有 3 個 Link（2, 3, 4）
+        // 從 PKServer 的權杖來看，0 應該要有 2 個 Strategies（0, 1）；2 應該要有 3 個 Strategies（2, 3, 4）
         
-        let expectations = [0, 2].map({ expectation(description: "Add links to user \($0)") })
+        let expectations = [0, 2].map({ expectation(description: "Add strategies to user \($0)") })
         
         let work = [(target: 0, sources: [1]), (target: 2, sources: [3, 4])]
         
@@ -234,7 +234,7 @@ class FacebookTests: XCTestCase {
             var callback: ((JSON?, PKServerError?) -> Void)? = nil
             callback = { (_: JSON?, error: PKServerError?) -> Void in
                 if error != nil {
-                    XCTFail("Cannot add Link, error from AuthActions")
+                    XCTFail("Cannot add Strategies, error from AuthActions")
                 }
                 
                 // 取得 User
@@ -245,13 +245,13 @@ class FacebookTests: XCTestCase {
                 
                 currentDoneIndex += 1
                 if currentDoneIndex == sources.count {
-                    XCTAssert(expectedTokens.elementsEqual(user.links.map({ $0.accessToken })))
+                    XCTAssert(expectedTokens.elementsEqual(user.strategies.map({ $0.accessToken })))
                     expectations[expectationIndex].fulfill()
                     return
                 }
                 
                 // 下一次 AuthActions！
-                AuthActions.add(link: .facebook, userId: nil, token: FacebookTests.facebookAccessTokens[sources[currentDoneIndex]], to: user, completionHandler: callback!)
+                AuthActions.add(strategy: .facebook, userId: nil, token: FacebookTests.facebookAccessTokens[sources[currentDoneIndex]], to: user, completionHandler: callback!)
             }
             
             // 開始連鎖反應
@@ -261,35 +261,35 @@ class FacebookTests: XCTestCase {
         wait(for: expectations, timeout: 10.0)
     }
     
-    func test4_AddRedundantLink() {
+    func test4_AddRedundantStrategies() {
         guard let user = getUser(withLogin: FacebookTests.parkingAccessTokens[0]) else {
             XCTFail()
             return
         }
         
-        let redudantLinkExpectation = expectation(description: "Redundant link should throw error!")
+        let redudantStrategyExpectation = expectation(description: "Redundant Strategies should throw error!")
         
-        AuthActions.add(link: .facebook, userId: nil, token: FacebookTests.facebookAccessTokens[4], to: user) { _, error in
+        AuthActions.add(strategy: .facebook, userId: nil, token: FacebookTests.facebookAccessTokens[4], to: user) { _, error in
             // Must throw an error!
             XCTAssertNotNil(error)
             
-            redudantLinkExpectation.fulfill()
+            redudantStrategyExpectation.fulfill()
         }
         
-        wait(for: [redudantLinkExpectation], timeout: 10.0)
+        wait(for: [redudantStrategyExpectation], timeout: 10.0)
     }
     
-    func test5_RemoveLinks() {
-        // Try to remove link 0 from user 0
+    func test5_RemoveStrategies() {
+        // Try to remove strategy 0 from user 0
         guard let user = getUser(withLogin: FacebookTests.parkingAccessTokens[0]) else {
             XCTFail()
             return
         }
         
-        let facebookId = user.links[0].userId
-        let removeLinkExpectation = expectation(description: "User Link Removal")
+        let facebookId = user.strategies[0].userId
+        let removeStrategyExpectation = expectation(description: "User strategy removal")
         
-        AuthActions.remove(link: .facebook, userId: facebookId, from: user) { _, error in
+        AuthActions.remove(strategy: .facebook, userId: facebookId, from: user) { _, error in
             XCTAssertNil(error)
             
             // Retrieve user again!
@@ -298,25 +298,25 @@ class FacebookTests: XCTestCase {
                 return
             }
             
-            XCTAssertEqual(user.links.count, 1)
+            XCTAssertEqual(user.strategies.count, 1)
             
-            removeLinkExpectation.fulfill()
+            removeStrategyExpectation.fulfill()
         }
         
-        wait(for: [removeLinkExpectation], timeout: 10.0)
+        wait(for: [removeStrategyExpectation], timeout: 10.0)
     }
     
-    func test6_RemoveLastLink() {
-        // Try to remove link 0 from user 0
+    func test6_RemoveLastStrategy() {
+        // Try to remove strategy 0 from user 0
         guard let user = getUser(withLogin: FacebookTests.parkingAccessTokens[0]) else {
             XCTFail()
             return
         }
         
-        let facebookId = user.links[0].userId
-        let removeLinkExpectation = expectation(description: "User Link Removal")
+        let facebookId = user.strategies[0].userId
+        let removeStrategyExpectation = expectation(description: "User strategy removal")
         
-        AuthActions.remove(link: .facebook, userId: facebookId, from: user) { _, error in
+        AuthActions.remove(strategy: .facebook, userId: facebookId, from: user) { _, error in
             XCTAssertNotNil(error)
             
             // Retrieve user again!
@@ -325,12 +325,12 @@ class FacebookTests: XCTestCase {
                 return
             }
             
-            XCTAssertEqual(user.links.count, 1)
+            XCTAssertEqual(user.strategies.count, 1)
             
-            removeLinkExpectation.fulfill()
+            removeStrategyExpectation.fulfill()
         }
         
-        wait(for: [removeLinkExpectation], timeout: 10.0)
+        wait(for: [removeStrategyExpectation], timeout: 10.0)
     }
     
     
