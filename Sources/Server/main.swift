@@ -3,6 +3,8 @@ import LoggerAPI
 import Kitura
 import HeliumLogger
 import Configuration
+import KituraWebSocket
+import WebSocketServices
 
 #if os(Linux)
     import Glibc
@@ -16,7 +18,7 @@ import Middlewares
 import Routers
 import Common
 
-HeliumLogger.use()
+HeliumLogger.use(LoggerMessageType.debug)
 
 let configurationManager = ConfigurationManager()
 configurationManager.load(file: "./../../config.json")
@@ -74,5 +76,10 @@ router.error() {
     response.status(error.response.code).send(json: ["error": error.response.message, "code": error.response.errorCode])
 }
 
+router.get("", handler: { _, res, _ in
+    res.send("Kitura running...")
+})
+
+WebSocket.register(service: SensorService(), onPath: "sensor")
 Kitura.addHTTPServer(onPort: 8080, with: router)
 Kitura.run()

@@ -11,7 +11,8 @@ let package = Package(
         Target(name: "ResourceManager", dependencies: [ "Utilities" ]),
         Target(name: "Middlewares", dependencies: [ "Common", "Utilities", "Models" ]),
         Target(name: "Routers", dependencies: [ "Common", "Utilities", "Models", "Middlewares" ]),
-        Target(name: "Server", dependencies: [ "Common", "Utilities", "Models", "Middlewares", "Routers" ])
+        Target(name: "WebSocketServices", dependencies: [ "Common", "Utilities", "Models", "Middlewares" ]),
+        Target(name: "Server", dependencies: [ "Common", "Utilities", "Models", "Middlewares", "Routers", "WebSocketServices" ]),
     ],
     dependencies: [
         .Package(url: "https://github.com/IBM-Swift/Kitura.git", majorVersion: 1, minor: 7),
