@@ -11,88 +11,6 @@ import Middlewares
 import Models
 import ResourceManager
 
-protocol PKSocialLoginProviderActions {
-    /**
-     從要求找出使用者資訊
-     - Parameter userId: 使用者的 ID（若存在）
-     - Parameter accessToken: 使用者的權杖（若存在）
-     - Parameter completionHandler: 找到使用者 ID 後的回呼
-     - Parameter credentials: 使用者資訊
-     - Parameter error: 失敗的原因
-     */
-    static func validate(userId: String?, accessToken: String?, completionHandler: @escaping (_ credentials: (userId: String, accessToken: String)?, _ error: PKServerError?) -> Void)
-}
-
-struct FacebookLoginProviderActions: PKSocialLoginProviderActions {
-    /// 驗證使用者權杖以及取得使用者 ID
-    ///
-    /// - Parameters:
-    ///   - accessToken: 使用者權杖
-    ///   - callback: 回呼
-    ///   - userId: 使用者 ID
-    ///   - error: 錯誤
-    static func getFacebookUserId(for accessToken: String, callback: @escaping (_ userId: String?, _ error: PKServerError?) -> Void) {
-        // 1. 先確認使用者聲稱的權杖是否有效
-        // 1.1 產生 appsecret_proof
-        var proof: String! = nil
-        do {
-            let hashed = try HMAC(key: PKResourceManager.shared.config.facebookSecret, variant: .sha256).authenticate(accessToken.utf8.map({ $0 }))
-            proof = Data(bytes: hashed).toHexString()
-        } catch {
-            callback(nil, PKServerError.crypto(while: "trying to hash your Facebook access token."))
-            return
-        }
-        var urlComponents = URLComponents(string: "https://graph.facebook.com/me")!
-        urlComponents.queryItems = [
-            URLQueryItem(name: "appsecret_proof", value: proof!),
-            URLQueryItem(name: "access_token", value: accessToken)
-        ]
-        guard let url = urlComponents.url else {
-            callback(nil, PKServerError.unknown(description: "Unable to create URL to confirm your identity."))
-            return
-        }
-        
-        // 1.2 網路要求，呼叫 Facebook API
-        URLSession.shared.dataTask(with: url) { data, _, error -> Void in
-            guard error == nil, let data = data else {
-                callback(nil, PKServerError.network(while: "confirming your identity with Facebook."))
-                return
-            }
-            let body = JSON(data: data)
-            guard let userId = body["id"].string  else {
-                callback(nil, PKServerError.serialization(data: "from Facebook", while: "reading response from Facebook."))
-                return
-            }
-            
-            callback(userId, nil)
-        }.resume()
-    }
-    static func validate(userId: String?, accessToken: String?, completionHandler: @escaping (_ credentials: (userId: String, accessToken: String)?, _ error: PKServerError?) -> Void) {
-        guard let accessToken = accessToken else {
-            completionHandler(nil, PKServerError.missingBody(fields: [(name: "accessToken", type: "String")]))
-            return
-        }
-        
-        getFacebookUserId(for: accessToken) { userId, error in
-            switch (userId, error) {
-            case (.none, .some(let err)):
-                completionHandler(nil, err)
-            case (.some(let validatedUserId), _):
-                if let userId = userId {
-                    if validatedUserId != userId {
-                        completionHandler(nil, PKServerError.unknown(description: "User ID does not match Access Token."))
-                        return
-                    }
-                }
-                
-                completionHandler((userId: validatedUserId, accessToken: accessToken), nil)
-            default:
-                completionHandler(nil, PKServerError.unknown(description: "Code path that is unreachable is reached."))
-            }
-        }
-    }
-}
-
 /// 表示使用者想要登入取得的權限
 enum LoginRequestScope: RawRepresentable {
     typealias RawValue = String
@@ -135,9 +53,6 @@ enum LoginRequestScope: RawRepresentable {
 }
 
 struct AuthActions {
-    static let providerActions: [PKSocialStrategy: PKSocialLoginProviderActions.Type] = [
-        .facebook: FacebookLoginProviderActions.self
-    ]
     static func findUser(with strategy: PKSocialStrategy, userId: String, in collection: MongoKitten.Collection) throws -> PKUser? {
         let providerRawValue = strategy.rawValue
         let query = [
@@ -164,53 +79,11 @@ struct AuthActions {
             return deserialized
         }
     }
-    static func delete(user: PKUser, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void ) {
-        // TODO: Check if there are reservations, parked cars, uninvoiced records, or unpaid invoices
-        
-        let collection = PKResourceManager.shared.database["users"]
-        do {
-            _ = try collection.remove("_id" == user._id!)
-        } catch {
-            completionHandler(nil, PKServerError.database(while: "removing user from database"))
-        }
-        
-        completionHandler(nil, nil)
-    }
-    
-    // MARK: 型態安全的方法
-    static func inspect(user: PKUser?, type: PKUserType?, completionHandler: @escaping (_ response: JSON) -> Void) {
-        var payload: [String: JSON] = [ "loggedin": JSON(user != nil) ]
-        if let type = type {
-            switch type {
-            case .standard:
-                payload["scope"] = "standard"
-            case .admin(access: .readOnly):
-                payload["scope"] = "admin"
-                payload["access"] = "read"
-            case .admin(access: .readWrite):
-                payload["scope"] = "admin"
-                payload["access"] = "write"
-            case .agent(provider: let provider, access: .readOnly):
-                payload["scope"] = "agent"
-                payload["access"] = "read"
-                payload["target"] = JSON(provider.hexString)
-            case .agent(provider: let provider, access: .readWrite):
-                payload["scope"] = "agent"
-                payload["access"] = "write"
-                payload["target"] = JSON(provider.hexString)
-            }
-            
-            payload["userId"] = JSON(user!._id!.hexString)
-        }
-        
-        completionHandler(JSON(payload))
-    }
     static func registerOrLogin(strategy: PKSocialStrategy, userId: String?, token: String?, scope: LoginRequestScope, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void ) {
         let collection = PKResourceManager.shared.database["users"]
-        let strategyActions = AuthActions.providerActions[strategy]!
         
         // 確認社群資訊
-        strategyActions.validate(userId: userId, accessToken: token) { credentials, error in
+        strategy.validate(userId: userId, accessToken: token) { credentials, error in
             guard let (userId, accessToken) = credentials else {
                 completionHandler(nil, error!)
                 return
@@ -301,65 +174,6 @@ struct AuthActions {
             completionHandler(JSON(stringLiteral: token!.value), nil)
         }
     }
-    static func add(strategy: PKSocialStrategy, userId: String?, token: String?, to user: PKUser, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void) {
-        let collection = PKResourceManager.shared.database["users"]
-        let strategyActions = AuthActions.providerActions[strategy]!
-        
-        strategyActions.validate(userId: userId, accessToken: token) { credentials, error in
-            guard let (userId, accessToken) = credentials else {
-                completionHandler(nil, error!)
-                return
-            }
-            
-            // Strategy must not exist already!
-            do {
-                let existing = try AuthActions.findUser(with: strategy, userId: userId, in: collection)
-                if existing != nil {
-                    completionHandler(nil, .strategyExisted)
-                    return
-                }
-            } catch {
-                completionHandler(nil, .database(while: "checking for redundant social account"))
-                return
-            }
-            
-            var user = user
-            user.strategies.append(PKSocialLoginStrategy(strategy: strategy, userId: userId, accessToken: accessToken))
-            
-            do {
-                _ = try collection.findAndUpdate("_id" == user._id!, with: Document(user))
-            } catch {
-                completionHandler(nil, .database(while: "updating user information."))
-                return
-            }
-            
-            completionHandler("", nil)
-        }
-    }
-    static func remove(strategy: PKSocialStrategy, userId: String, from user: PKUser, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void) {
-        let collection = PKResourceManager.shared.database["users"]
-        var user = user
-        
-        user.strategies = user.strategies.filter { $0.strategy != strategy || $0.userId != userId }
-        
-        if user.strategies.isEmpty {
-            completionHandler(nil, .cannotRemoveLastStrategy)
-            return
-        }
-        
-        do {
-            _ = try collection.findAndUpdate("_id" == user._id!, with: Document(user))
-        } catch {
-            completionHandler(nil, PKServerError.database(while: "updating user information."))
-            return
-        }
-        
-        completionHandler("", nil)
-    }
-    static func strategies(user: PKUser, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void) {
-        let payload = user.strategies.map { JSON([ "provider": JSON($0.strategy.rawValue), "userId": JSON($0.userId) ]) }
-        completionHandler(JSON(payload), nil)
-    }
 }
 
 ///
@@ -367,11 +181,7 @@ struct AuthActions {
 /// 
 /// # 路徑
 ///
-/// - 註冊、登入 `POST login/*strategy`
-/// - 刪除帳號   `DELETE account`
-/// - 策略管理   `GET account/strategies`
-/// - 新增策略   `POST account/strategies/*strategy`
-/// - 刪除策略   `DELETE account/strategies/facebook/*userId`
+/// - 註冊、登入 `POST *strategy`
 ///
 /// # 策略（strategy）
 /// 1. Facebook
@@ -382,7 +192,7 @@ public func authRouter() -> Router {
     let router = Router()
     
     /// 解析資訊，傳給 AuthActions 的 registerOrLogin 靜態方法
-    router.post("login/:strategy", handler: { request, response, next in
+    router.post(":strategy", handler: { request, response, next in
         guard let strategyString = request.parameters["strategy"],
             let strategy = PKSocialStrategy(rawValue: strategyString),
             let body = request.body?.asJSON,
@@ -416,82 +226,6 @@ public func authRouter() -> Router {
                 // 陣列可以
                 response.send(json: json)
             }
-        }
-    })
-    
-    router.delete("account", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "remove your own account."), { request, response, next in
-        let user = request.user!
-        AuthActions.delete(user: user) { _, error in
-            if let error = error {
-                response.error = error
-                next()
-                return
-            }
-            
-            _ = response.send(status: .OK)
-        }
-    })
-    router.all("account/strategies", allowPartialMatch: true, middleware: strategiesRouter())
-    
-    /// 解析資訊，傳給 AuthActions 的 inspect 靜態方法
-    router.get(handler: { request, response, next in
-        AuthActions.inspect(user: request.user, type: request.userType) { json in
-            response.send(json: json)
-        }
-    })
-    return router
-}
-
-fileprivate func strategiesRouter() -> Router {
-    let router = Router()
-    
-    /// 回傳連結
-    router.get(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "check all social strategies"), { request, response, next in
-        let user = request.user!
-        AuthActions.strategies(user: user) { json, error in
-            response.send(json: json!)
-        }
-    })
-    
-    /// 新增連結
-    router.post(":strategy", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "add social strategy"), { request, response, next in
-        guard let strategyString = request.parameters["strategy"],
-            let strategy = PKSocialStrategy(rawValue: strategyString),
-            let body = request.body?.asJSON else {
-                response.status(HTTPStatusCode.notFound).send("Strategy is not known.")
-                return
-        }
-        let userId = body["userId"].string
-        let accessToken = body["accessToken"].string
-        
-        AuthActions.add(strategy: strategy, userId: userId, token: accessToken, to: request.user!) { _, error in
-            if let error = error {
-                response.error = error
-                next()
-                return
-            }
-            
-            _ = response.send(status: .OK)
-        }
-    })
-    
-    /// 刪除連結
-    router.delete(":strategy/:socialId", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "remove social strategy"), { request, response, next in
-        guard let strategyString = request.parameters["strategy"],
-            let strategy = PKSocialStrategy(rawValue: strategyString),
-            let socialId = request.parameters["socialId"] else {
-                response.status(HTTPStatusCode.notFound).send("Strategy is not known.")
-                return
-        }
-        
-        AuthActions.remove(strategy: strategy, userId: socialId, from: request.user!) { _, error in
-            if let error = error {
-                response.error = error
-                next()
-                return
-            }
-            
-            _ = response.send(status: .OK)
         }
     })
     

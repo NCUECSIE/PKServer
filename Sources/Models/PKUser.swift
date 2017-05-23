@@ -33,10 +33,6 @@ public enum PKUserType: PKEnumReflectionSerializable {
     }
 }
 
-public enum PKSocialStrategy: String, PKEnumReflectionSerializable {
-    case facebook = "facebook"
-}
-
 public struct PKSocialLoginStrategy: PKObjectReflectionSerializable {
     public let strategy: PKSocialStrategy
     public let userId: String

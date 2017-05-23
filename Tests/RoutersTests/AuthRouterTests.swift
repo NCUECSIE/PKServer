@@ -195,7 +195,7 @@ class FacebookTests: XCTestCase {
             
             let userObjectId = user._id!
             
-            AuthActions.delete(user: user) { _, error in
+            MeActions.delete(user: user) { _, error in
                 XCTAssertNil(error)
                 
                 // 資料庫
@@ -251,7 +251,7 @@ class FacebookTests: XCTestCase {
                 }
                 
                 // 下一次 AuthActions！
-                AuthActions.add(strategy: .facebook, userId: nil, token: FacebookTests.facebookAccessTokens[sources[currentDoneIndex]], to: user, completionHandler: callback!)
+                MeActions.add(strategy: .facebook, userId: nil, token: FacebookTests.facebookAccessTokens[sources[currentDoneIndex]], to: user, completionHandler: callback!)
             }
             
             // 開始連鎖反應
@@ -269,7 +269,7 @@ class FacebookTests: XCTestCase {
         
         let redudantStrategyExpectation = expectation(description: "Redundant Strategies should throw error!")
         
-        AuthActions.add(strategy: .facebook, userId: nil, token: FacebookTests.facebookAccessTokens[4], to: user) { _, error in
+        MeActions.add(strategy: .facebook, userId: nil, token: FacebookTests.facebookAccessTokens[4], to: user) { _, error in
             // Must throw an error!
             XCTAssertNotNil(error)
             
@@ -289,7 +289,7 @@ class FacebookTests: XCTestCase {
         let facebookId = user.strategies[0].userId
         let removeStrategyExpectation = expectation(description: "User strategy removal")
         
-        AuthActions.remove(strategy: .facebook, userId: facebookId, from: user) { _, error in
+        MeActions.remove(strategy: .facebook, userId: facebookId, from: user) { _, error in
             XCTAssertNil(error)
             
             // Retrieve user again!
@@ -316,7 +316,7 @@ class FacebookTests: XCTestCase {
         let facebookId = user.strategies[0].userId
         let removeStrategyExpectation = expectation(description: "User strategy removal")
         
-        AuthActions.remove(strategy: .facebook, userId: facebookId, from: user) { _, error in
+        MeActions.remove(strategy: .facebook, userId: facebookId, from: user) { _, error in
             XCTAssertNotNil(error)
             
             // Retrieve user again!
