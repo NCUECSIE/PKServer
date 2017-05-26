@@ -1,0 +1,29 @@
+import Foundation
+import CryptoSwift
+
+public extension Data {
+    init?(physicalAddress: String) {
+        let bytes = physicalAddress.components(separatedBy: ":").flatMap { UInt8($0, radix: 16) }
+        self.init(bytes: bytes)
+        
+        if count != 6 { return nil }
+    }
+}
+
+public extension String {
+    init?(physicalAddress: Data) {
+        if physicalAddress.count != 6 { return nil }
+        
+        let sequence = physicalAddress.toHexString().characters.reduce([Character](), { (cs: [Character], character: Character) -> [Character] in
+            var characters = cs
+            
+            if characters.count > 0 && characters.count % 2 == 0 {
+                characters.append(":")
+            }
+            characters.append(character)
+            return characters
+        })
+        
+        self.init(sequence)
+    }
+}

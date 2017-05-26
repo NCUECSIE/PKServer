@@ -5,6 +5,7 @@ import HeliumLogger
 import Configuration
 import KituraWebSocket
 import WebSocketServices
+import Foundation
 
 #if os(Linux)
     import Glibc
@@ -76,8 +77,45 @@ router.error() {
     response.status(error.response.code).send(json: ["error": error.response.message, "code": error.response.errorCode])
 }
 
-router.get("", handler: { _, res, _ in
-    res.send("Kitura running...")
+// For debug purposes only!
+router.get("sensor", handler: { _, res, _ in
+    let before = "<html><body>"
+    let after  = "</html></after>"
+    if let lastReceived = SensorService.lastReceived {
+        let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 8 * 3600)
+        formatter.locale = Locale(identifier: "zh-TW")
+        
+        switch lastReceived {
+        case let .Binary(data, date):
+            res.send(before + "You have sent binary data of \(data.count) bytes on \(date) <br/>" +
+                "The following is the content: <br/>" +
+                "<pre>\(data.map { $0 })</pre>" + after)
+        case let .JSON(json, date):
+            res.send(before + "You have sent String data that is serializable to JSON on \(date) <br/>" +
+                "The following is the content: <br/>" +
+                "<pre>\(json.rawString(encoding: .utf8, options: .prettyPrinted) ?? "conversion to string failed")</pre>" + after)
+        case let .String(string, date):
+            res.send(before + "You have sent String data that is not serializable to JSON on \(date) <br/>" +
+                "The following is the content: <br/>" +
+                "<pre>\(string)</pre>" + after)
+        }
+    } else {
+        res.send("Nothing received yet.")
+    }
+})
+
+// Override the default page
+router.get("", handler: { req, res, next in
+    res.send([
+        "<html>",
+        "<body>",
+        "<p>The following HTTP routes are available for debugging your applications, </p>",
+        "<ul>",
+        "<li><pre>/sensor</pre> - For Sensor WebSocket API, you can view the last submitted result here.</li>",
+        "</ul>",
+        "</body>",
+        "</html>"].joined(separator: ""))
 })
 
 WebSocket.register(service: SensorService(), onPath: "sensor")

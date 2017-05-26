@@ -3,6 +3,7 @@ import Security
 import MongoKitten
 import SwiftyJSON
 import BSON
+import Common
 import PKAutoSerialization
 
 // MARK: 使用者資料型態
@@ -173,15 +174,4 @@ public struct PKUser: PKModel {
               let tokensValue = document["tokens"]!.toArray(typed: PKToken.self) else { return nil }
         return PKUser(_id: _idValue, types: typesValue, strategies: strategiesValue, deviceIds: deviceIdsValue, vehicleIds: vehicleIdsValue, tokens: tokensValue)
     }
-}
-
-func randomBytes(length: Int) -> Data {
-    var data = Data(count: length)
-    let result = data.withUnsafeMutableBytes { bytes in SecRandomCopyBytes(kSecRandomDefault, length, bytes) }
-    if result == errSecSuccess {
-        return data
-    } else {
-        fatalError("Cannot generate random bytes.")
-    }
-    return data
 }
