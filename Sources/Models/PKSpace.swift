@@ -1,7 +1,10 @@
 import PKAutoSerialization
 import CoreLocation
+import Dispatch
 import BSON
 import SwiftyJSON
+import ResourceManager
+import LoggerAPI
 
 public struct Fee: PKObjectReflectionSerializable {
     public var unitTime: TimeInterval
@@ -26,7 +29,8 @@ public struct PKSpace: PKModel {
         return [
             "_id": _id!.hexString,
             "location": [ "longitude": location.longitude,
-                          "latitude": location.latitude ]
+                          "latitude": location.latitude ],
+            "parked": parked
         ]
     }
     public var detailedJSON: JSON {
@@ -37,10 +41,31 @@ public struct PKSpace: PKModel {
                           "latitude": location.latitude ],
             "markings": markings,
             "fee": [ "charge": fee.charge,
-                     "unitTime": fee.unitTime ]
+                     "unitTime": fee.unitTime ],
+            "parked": parked
         ]
     }
 
+    private var parked: Bool {
+        let group = DispatchGroup()
+        group.enter()
+        
+        var p = false
+        PKResourceManager.shared.redis.get(_id!.hexString) { result, _ in
+            if let result = result {
+                if result.asString == "true" { p = true }
+            }
+            group.leave()
+        }
+        
+        // Wait for .1 sec at most!
+        let r = group.wait(timeout: DispatchTime(uptimeNanoseconds: DispatchTime.now().uptimeNanoseconds + 100000000))
+        if case .timedOut = r {
+            Log.error("DispatchGroup timed out while waiting for response.")
+        }
+        return p
+    }
+    
     /// 唯一識別碼
     public let _id: ObjectId?
     
@@ -50,14 +75,17 @@ public struct PKSpace: PKModel {
     public var markings: String
     public var fee: Fee
     
+    public var deleted: Bool
+    
     /// 從資料庫初始化
     private init(id: ObjectId, provider p: PKDbRef<PKProvider>, location l: CLLocationCoordinate2D, markings m: String,
-         fee f: Fee) {
+                 fee f: Fee, deleted d: Bool) {
         _id = id
         provider = p
         location = l
         markings = m
         fee = f
+        deleted = d
     }
     /// 從程式碼初始化
     public init(provider p: ObjectId, latitude: CLLocationDegrees, longitude: CLLocationDegrees, markings m: String, fee f: Fee) {
@@ -66,13 +94,15 @@ public struct PKSpace: PKModel {
         location = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         markings = m
         fee = f
+        deleted = false
     }
     
     public func serialize() throws -> Primitive {
         return [ "provider": try provider.serialize(),
                  "location": try location.serialize(),
                  "markings": markings,
-                 "fee": try fee.serialize() ] as Document
+                 "fee": try fee.serialize(),
+                 "deleted": deleted ] as Document
     }
     public static func deserialize(from primitive: Primitive) -> PKSpace? {
         guard let document = primitive.toDocument(requiredKeys: ["_id", "provider", "location", "markings", "fee"]),
@@ -80,11 +110,12 @@ public struct PKSpace: PKModel {
               let p = document["provider"]!.to(PKDbRef<PKProvider>.self),
               let l = document["location"]!.to(CLLocationCoordinate2D.self),
               let m = document["markings"].to(String.self),
-              let f = document["fee"]!.to(Fee.self) else {
+              let f = document["fee"]!.to(Fee.self),
+              let d = document["deleted"].to(Bool.self) else {
             return nil
         }
         
-        return PKSpace(id: i, provider: p, location: l, markings: m, fee: f)
+        return PKSpace(id: i, provider: p, location: l, markings: m, fee: f, deleted: d)
     }
 }
 

@@ -101,7 +101,7 @@
       "package": "SSLService",
       "reason": null,
       "repositoryURL": "https://github.com/IBM-Swift/BlueSSLService.git",
-      "version": "0.12.34"
+      "version": "0.12.35"
     },
     {
       "package": "Schrodinger",
@@ -113,7 +113,7 @@
       "package": "Socket",
       "reason": null,
       "repositoryURL": "https://github.com/IBM-Swift/BlueSocket.git",
-      "version": "0.12.49"
+      "version": "0.12.50"
     },
     {
       "package": "SwiftRedis",
@@ -126,6 +126,12 @@
       "reason": null,
       "repositoryURL": "https://github.com/IBM-Swift/SwiftyJSON.git",
       "version": "16.0.0"
+    },
+    {
+      "package": "ToriAPNS",
+      "reason": null,
+      "repositoryURL": "https://github.com/NCUECSIE/Tori-APNS.git",
+      "version": "0.5.0"
     }
   ],
   "version": 1

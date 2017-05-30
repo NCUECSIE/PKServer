@@ -17,7 +17,7 @@ public protocol Grids: Sequence {
 
 // MARK: Sequence Conformance
 public extension Grids {
-    public typealias Iterator = IndexingIterator<[Grid]>
+    typealias Iterator = IndexingIterator<[Grid]>
     public func makeIterator() -> IndexingIterator<[Grid]> {
         return grids.makeIterator()
     }
@@ -175,10 +175,26 @@ public struct Grid: Grids, CustomStringConvertible {
     public init(latitude: CLLocationDegrees, longitude: CLLocationDegrees) {
         location = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
+    public init(containing latitude: CLLocationDegrees, _ longitude: CLLocationDegrees) {
+        let ceiledLatitude = ceil(latitude * 100.0) / 100.0
+        let ceiledLongitude = ceil(longitude * 100.0) / 100.0
+        
+        self.init(latitude: ceiledLatitude, longitude: ceiledLongitude)
+    }
+    
+    public init?(string: String) {
+        let components = string.components(separatedBy: ":")
+        guard components.count == 2,
+            let latitude = Double(components[0]),
+            let longitude = Double(components[1]) else {
+                return nil
+        }
+        
+        self.init(containing: latitude, longitude)
+    }
     
     // MARK: CustomStringConvertible
-    public
-    var description: String {
+    public var description: String {
         return String(format: "%.02f:%.02f", location.latitude, location.longitude)
     }
 }

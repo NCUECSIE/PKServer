@@ -44,7 +44,7 @@ internal struct SpacesActions {
         }
     }
     
-    static func read(in grid: NonConsecutiveGrids, completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
+    static func read<T: Grids>(in grid: T, completionHandler: (_ json: JSON?, _ error: PKServerError?) -> Void) {
         let collection = PKResourceManager.shared.database["spaces"]
         
         let gridsQuery = grid.consecutiveGrids.map {
@@ -57,15 +57,14 @@ internal struct SpacesActions {
                 "location.coordinates.1": [
                     "$gte": grids.lowerLeft.latitude,
                     "$lt": grids.upperRight.latitude.nextDown
-                ]
+                ],
+                "deleted": false
             ]
         }
         
         let query: Query = [
             "$or": gridsQuery
         ]
-        
-        print(query)
         
         do {
             var hasDeserializeError = false
@@ -145,19 +144,7 @@ internal struct SpacesActions {
     }
     
     static func delete(id: ObjectId, completionHandler: (_ error: PKServerError?) -> Void) {
-        let collection = PKResourceManager.shared.database["spaces"]
-        
-        // TODO: If any events are on the space, server should react
-        Log.warning("Feature not yet implemented, checking")
-        
-        do {
-            let _ = try collection.findAndRemove("_id" == id)
-            completionHandler(nil)
-            return
-        } catch {
-            completionHandler(PKServerError.database(while: "deleting spaces"))
-            return
-        }
+        update(id: id, with: [ "deleted": true ], completionHandler: completionHandler)
     }
 }
 

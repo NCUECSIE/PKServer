@@ -167,7 +167,7 @@ internal struct ProviderActions {
         let spacesCollection = PKResourceManager.shared.database["spaces"]
         
         do {
-            let spaces = try spacesCollection.find("provider.$id" == provider).map({ space -> JSON in
+            let spaces = try spacesCollection.find("provider.$id" == provider && "deleted" == false).map({ space -> JSON in
                 guard let space = PKSpace.deserialize(from: space)?.detailedJSON else {
                     throw PKServerError.deserialization(data: "Provider", while: "deserializing document from database")
                 }

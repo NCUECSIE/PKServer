@@ -106,9 +106,35 @@ public struct PKToken: PKObjectReflectionSerializable {
     }
 }
 
+public struct PKVehicle: PKObjectReflectionSerializable {
+    public let tag: String
+    public let plate: String
+    
+    public var json: JSON {
+        return JSON(stringLiteral: plate)
+    }
+    
+    public init(tag t: String, plate p: String) {
+        tag = t
+        plate = p
+    }
+    
+    public static func deserialize(from primitive: Primitive) -> PKVehicle? {
+        guard let document = primitive.toDocument(requiredKeys: ["tag", "plate"]),
+            let tag = document["tag"]!.to(String.self),
+            let plate = document["plate"]!.to(String.self) else {
+                return nil
+        }
+        return PKVehicle(tag: tag, plate: plate)
+    }
+}
+
 public struct PKUser: PKModel {
     public var detailedJSON: JSON {
-        fatalError()
+        return [
+            "_id": _id!.hexString,
+            "vehicles": vehicles.map { $0.plate }
+        ]
     }
 
     /// 唯一識別碼
@@ -122,7 +148,7 @@ public struct PKUser: PKModel {
     /// APNS 裝置 ID
     public var deviceIds: [String]
     /// 車輛 ID
-    public var vehicleIds: [String]
+    public var vehicles: [PKVehicle]
     /// 使用者認證代幣
     public var tokens: [PKToken]
     
@@ -131,7 +157,7 @@ public struct PKUser: PKModel {
         types = [.standard]
         strategies = [strategy]
         deviceIds = []
-        vehicleIds = []
+        vehicles = []
         tokens = []
     }
     
@@ -145,12 +171,12 @@ public struct PKUser: PKModel {
         return token
     }
     
-    private init(_id i: ObjectId, types ty: [PKUserType], strategies s: [PKSocialLoginStrategy], deviceIds d: [String], vehicleIds v: [String], tokens to: [PKToken]) {
+    private init(_id i: ObjectId, types ty: [PKUserType], strategies s: [PKSocialLoginStrategy], deviceIds d: [String], vehicles v: [PKVehicle], tokens to: [PKToken]) {
         _id = i
         types = ty
         strategies = s
         deviceIds = d
-        vehicleIds = v
+        vehicles = v
         tokens = to
     }
     
@@ -165,13 +191,14 @@ public struct PKUser: PKModel {
     }
     
     public static func deserialize(from primitive: Primitive) -> PKUser? {
-        guard let document = primitive.toDocument(requiredKeys: ["_id", "types", "strategies", "deviceIds", "vehicleIds", "tokens"]),
+        guard let document = primitive.toDocument(requiredKeys: ["_id", "types", "strategies", "deviceIds", "vehicles", "tokens"]),
               let _idValue = document["_id"]!.to(ObjectId.self),
               let typesValue = document["types"]!.toArray(typed: PKUserType.self),
               let strategiesValue = document["strategies"]!.toArray(typed: PKSocialLoginStrategy.self),
               let deviceIdsValue = document["deviceIds"]!.toArray(typed: String.self),
-              let vehicleIdsValue = document["vehicleIds"]!.toArray(typed: String.self),
+              let vehiclesValue = document["vehicles"]!.toArray(),
               let tokensValue = document["tokens"]!.toArray(typed: PKToken.self) else { return nil }
-        return PKUser(_id: _idValue, types: typesValue, strategies: strategiesValue, deviceIds: deviceIdsValue, vehicleIds: vehicleIdsValue, tokens: tokensValue)
+        let vehicles = vehiclesValue.flatMap { PKVehicle.deserialize(from: $0) }
+        return PKUser(_id: _idValue, types: typesValue, strategies: strategiesValue, deviceIds: deviceIdsValue, vehicles: vehicles, tokens: tokensValue)
     }
 }

@@ -155,7 +155,7 @@ public func meRouter() -> Router {
     })
     router.all("strategies", allowPartialMatch: true, middleware: strategiesRouter())
     router.all("vehicles", allowPartialMatch: true, middleware: vehiclesRouter())
-    
+    router.all("devices", allowPartialMatch: true, middleware: devicesRouter())
     return router
 }
 
@@ -229,12 +229,12 @@ internal struct VehiclesActions {
     /// 此方法保證 `result != nil` 以及 `error == nil`
     ///
     static func read(in user: PKUser, completionHandler: (_ result: JSON?, _ error: PKServerError?) -> Void) {
-        completionHandler(JSON(user.vehicleIds.map { JSON($0) }), nil)
+        completionHandler(JSON(user.vehicles.map { $0.json }), nil)
     }
     
-    static func create(vehicle id: String, in user: PKUser, completionHandler: (_ error: PKServerError?) -> Void) {
+    static func create(plate: String, tag: String, in user: PKUser, completionHandler: (_ error: PKServerError?) -> Void) {
         let query: Query = [
-            "vehicleIds": [ "$elemMatch": id ]
+            "vehicles": [ "$elemMatch": [ "tag": tag ] ]
         ]
         do {
             let result = try PKResourceManager.shared.database["users"].findOne(query)
@@ -249,7 +249,7 @@ internal struct VehiclesActions {
         
         do {
             var u = user
-            u.vehicleIds.append(id)
+            u.vehicles.append(PKVehicle(tag: tag, plate: plate))
             _ = try PKResourceManager.shared.database["users"].findAndUpdate("_id" == u._id!, with: Document(u))
             completionHandler(nil)
         } catch {
@@ -278,17 +278,52 @@ public func vehiclesRouter() -> Router {
     
     router.get(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "retrieve vehicles list", as: [PKUserType.standard]), { req, res, next in
         guard let body = req.body?.asJSON,
-            let id = body["vehicleId"].string,
-            id.utf8.count == 16 else {
-                throw PKServerError.missingBody(fields: [ (name: "vehicleId", type: "String[16]") ])
+            let plate = body["plate"].string,
+            let tag = body["tag"].string else {
+                throw PKServerError.missingBody(fields: [])
         }
         
-        VehiclesActions.create(vehicle: id, in: req.user!) { error in
+        VehiclesActions.create(plate: plate, tag: tag, in: req.user!) { error in
             if let err = error {
                 res.error = err
                 next()
             } else {
                 res.send("")
+            }
+        }
+    })
+    
+    return router
+}
+
+internal struct DevicesActions {
+    static func create(device: String, in user: PKUser, completionHandler: (_ result: Result<Void>) -> Void) {
+        do {
+            var u = user
+            u.deviceIds.append(device)
+            _ = try PKResourceManager.shared.database["users"].findAndUpdate("_id" == u._id!, with: Document(u))
+            completionHandler(.success())
+        } catch {
+            completionHandler(.error(.database(while: "updating database")))
+        }
+    }
+}
+public func devicesRouter() -> Router {
+    let router = Router()
+    
+    router.get(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "retrieve vehicles list", as: [PKUserType.standard]), { req, res, next in
+        guard let body = req.body?.asJSON,
+            let device = body["deviceId"].string else {
+                throw PKServerError.deserialization(data: "String", while: "reading deviceId")
+        }
+        
+        DevicesActions.create(device: device, in: req.user!) { result in
+            switch result {
+            case .success(_):
+                res.send("")
+            case .error(let err):
+                res.error = err
+                next()
             }
         }
     })

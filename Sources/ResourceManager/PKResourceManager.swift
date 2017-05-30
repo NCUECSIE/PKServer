@@ -1,5 +1,8 @@
 import Kitura
 import MongoKitten
+import SwiftRedis
+import Dispatch
+import Foundation
 
 // MARK: Internal Modules
 import Utilities
@@ -21,7 +24,7 @@ public class PKResourceManager: RouterMiddleware {
     /// MongoDB 的資料集
     public let mongodbServer: MongoKitten.Server
     public let database: MongoKitten.Database
-    // public private(set) var redisServer: Void?
+    public private(set) var redis: Redis
     
     /**
      若是已經有一個 `PKResourceManager` 時會失敗
@@ -29,7 +32,7 @@ public class PKResourceManager: RouterMiddleware {
        - mongoClientSettings: MongoDB 客戶端的設定
        - collectionName: MongoDB 的資料集名稱
      */
-    public init?(mongoClientSettings mongo: MongoKitten.ClientSettings, databaseName: String, config cfg: PKSharedConfig) {
+    public init?(mongoClientSettings mongo: MongoKitten.ClientSettings, databaseName: String, redisConfig: (host: String, port: Int32),config cfg: PKSharedConfig) {
         if PKResourceManager.shared != nil {
             return nil
         }
@@ -44,6 +47,20 @@ public class PKResourceManager: RouterMiddleware {
         // MARK: 用 HeliumLogger
         // TODO: 想辦法將這個放在一個比較模組化的地方
         mongodbServer.logger = MongoKittenLoggerAPIWrapper()
+        redis = Redis()
+        
+        let group = DispatchGroup()
+        var redisError: NSError? = nil
+        group.enter()
+        redis.connect(host: redisConfig.host, port: redisConfig.port) { err in
+            group.leave()
+            redisError = err
+        }
+        
+        group.wait()
+        if redisError != nil {
+            return nil
+        }
         
         PKResourceManager.shared = self
     }

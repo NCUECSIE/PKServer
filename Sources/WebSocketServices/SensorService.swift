@@ -36,7 +36,9 @@ internal class SensorActions {
 }
 
 public class SensorService: WebSocketService {
+    public static var shared: SensorService!
     private var connections: [String: WebSocketConnection]
+    private var recognizedConnections: [String: WebSocketConnection]
     
     public func connected(connection: WebSocketConnection) {
         connections[connection.id] = connection
@@ -54,6 +56,15 @@ public class SensorService: WebSocketService {
         Log.warning("Will disconnect sensor")
         
         connection.close(reason: .invalidDataType, description: "This service only receives JSON string.")
+    }
+    
+    public func notifyReservation(sensorAddress: Data) {
+        let address = String(physicalAddress: sensorAddress)!
+        let payload: JSON = [
+            "destination": address,
+            "type": "reservation"
+        ]
+        recognizedConnections[address]?.send(message: payload.rawString()!)
     }
     
     public func received(message: String, from connection: WebSocketConnection) {
@@ -91,6 +102,7 @@ public class SensorService: WebSocketService {
                 return
             }
             
+            recognizedConnections[physicalAddressString] = connection
             SensorActions.update(sensor: sensorId, networkId: networkId, metricDistance: metricDistance, routes: routes)
         } else {
             SensorService.lastReceived = .String(message, Date())
@@ -104,6 +116,16 @@ public class SensorService: WebSocketService {
     
     public init() {
         connections = [:]
+        recognizedConnections = [:]
+        SensorService.shared = self
+        
+        NotificationCenter.default.addObserver(forName: PKNotificationType.spaceReserved.rawValue, object: nil, queue: nil) { [unowned self] notification in
+            let userInfo = notification.userInfo!
+            let spaceId = userInfo["spaceId"] as! ObjectId
+            let sensorAddress = try! PKResourceManager.shared.database["sensors"].findOne("space.$id" == spaceId).to(PKSensor.self)?.address
+            
+            self.notifyReservation(sensorAddress: sensorAddress!)
+        }
     }
     
     // MARK: 為了支援 Debug 功能

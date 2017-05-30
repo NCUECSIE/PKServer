@@ -7,7 +7,7 @@ public extension RouterRequest {
         return PKResourceManager.shared.database
     }
     
-    /// 在 ``PKResourceManager` 所連線的 MongoDB 伺服器
+    /// 在 `PKResourceManager` 所連線的 MongoDB 伺服器
     public var mongodbServer: MongoKitten.Server {
         return PKResourceManager.shared.mongodbServer
     }
