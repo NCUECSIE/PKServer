@@ -58,6 +58,11 @@ guard let configs = configurationManager.getConfigs() as? [String: Any],
         "        \"appId\": \"your-facebook-app-id\",",
         "        \"clientAccessToken\": \"your-facebook-app-client-access-token\"",
         "    }",
+        "    \"apns\": {",
+        "        \"identity\": \"absolute path to p12 identity\",",
+        "        \"passphrase\": \"pass phrase of identity file\",",
+        "        \"bundleId\": \"bundle id of target application\"",
+        "    }",
         "}"
     ]
     Log.error("Your configuration file should have the following format: ")
