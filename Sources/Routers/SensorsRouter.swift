@@ -53,6 +53,7 @@ struct SensorsActions {
             let charge = end.timeIntervalSince(parking.begin)
             let spanCount = Int(ceil(charge / space.fee.unitTime))
             
+            try PKResourceManager.shared.database["parking"].remove("_id" == parking._id!)
             let record = PKRecord(spaceId: spaceId, userId: parking.user._id, plate: parking.plate!, begin: parking.begin, end: end, charge: Double(spanCount) * space.fee.charge)
             
             try PKResourceManager.shared.database["records"].insert(Document(record))
@@ -66,7 +67,7 @@ struct SensorsActions {
     static func create(address: Data, space: ObjectId, completionHandler: (_ secret: String?, _ error: PKServerError?) -> Void) {
         // check if space is already occupied?
         do {
-            guard let _ = try PKResourceManager.shared.database["sensors"].findOne("space.$id" == space) else {
+            guard try PKResourceManager.shared.database["sensors"].findOne("space.$id" == space) == nil else {
                 completionHandler(nil, PKServerError.unknown(description: "a sensor is already set to report status of the specified space"))
                 return
             }
@@ -102,7 +103,10 @@ struct SensorsActions {
     static func read(completionHandler: (_ result: JSON?, _ error: PKServerError?) -> Void) {
         do {
             let documents = try PKResourceManager.shared.database["sensors"].find()
-            let sensors = documents.flatMap({ $0.to(PKSensor.self) })
+            let sensors = documents.map({ document -> PKSensor in
+                print(document)
+                return PKSensor.deserialize(from: document)!
+            })
             let jsons = sensors.map { $0.simpleJSON }
             completionHandler(JSON(jsons), nil)
         } catch {
@@ -161,7 +165,7 @@ public func sensorsRouter() -> Router {
         
         var fetched: Document?
         do {
-            fetched = try PKResourceManager.shared.database["sensors"].findOne("physicalAddress" == address)
+            fetched = try PKResourceManager.shared.database["sensors"].findOne("address" == address)
         } catch {
             throw PKServerError.database(while: "fetching sensor with the specified physical address.")
         }
@@ -226,7 +230,7 @@ public func sensorsRouter() -> Router {
         }
     })
     
-    router.post(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "create new sensor", as: [.admin(access: .readWrite)]), { req, res, next in
+    router.post("", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "create new sensor", as: [.admin(access: .readWrite)]), { req, res, next in
         guard let body = req.body?.asJSON,
             let addressString = body["physicalAddress"].string,
             let address = Data(physicalAddress: addressString),
@@ -245,7 +249,7 @@ public func sensorsRouter() -> Router {
         }
     })
     
-    router.get(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "list sensors", as: [.admin(access: .readOnly)]), { req, res, next in
+    router.get("", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "list sensors", as: [.admin(access: .readOnly)]), { req, res, next in
         SensorsActions.read() { result, error in
             if let error = error {
                 res.error = error

@@ -176,8 +176,8 @@ public struct Grid: Grids, CustomStringConvertible {
         location = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
     public init(containing latitude: CLLocationDegrees, _ longitude: CLLocationDegrees) {
-        let ceiledLatitude = ceil(latitude * 100.0) / 100.0
-        let ceiledLongitude = ceil(longitude * 100.0) / 100.0
+        let ceiledLatitude = floor(latitude * 100.0) / 100.0
+        let ceiledLongitude = floor(longitude * 100.0) / 100.0
         
         self.init(latitude: ceiledLatitude, longitude: ceiledLongitude)
     }

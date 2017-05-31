@@ -203,7 +203,7 @@ public func authRouter() -> Router {
         }
         
         if case .agent(_) = scope {
-            if let providerId = body["provider"].string {
+            if let providerId = body["providerId"].string {
                 try scope.write(provider: providerId)
             }
         }

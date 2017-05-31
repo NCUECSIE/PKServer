@@ -24,7 +24,75 @@ struct MeActions {
         
         completionHandler(nil, nil)
     }
-    
+    static func makeAdmin(user: PKUser, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void ) {
+        let collection = PKResourceManager.shared.database["users"]
+        var u = user
+        
+        var isAdmin = false
+        for (i, type) in u.types.enumerated() {
+            if case .admin(access: .readOnly) = type {
+                u.types[i] = .admin(access: .readWrite)
+                isAdmin = true
+                break
+            } else if case .admin(access: .readWrite) = type {
+                isAdmin = true
+                break
+            }
+        }
+        
+        if !isAdmin {
+            u.types.append(.admin(access: .readWrite))
+        }
+        
+        do {
+            let id = user._id!
+            let query = "_id" == id
+            _ = try collection.update(query, to: Document(u), upserting: false, multiple: false)
+        } catch {
+            completionHandler(nil, .database(while: "updating user information."))
+            return
+        }
+        
+        completionHandler(nil, nil)
+    }
+    static func makeAgent(user: PKUser, forProvider providerId: ObjectId, completionHandler: @escaping (_ response: JSON?, _ error: PKServerError?) -> Void ) {
+        let collection = PKResourceManager.shared.database["users"]
+        var u = user
+        
+        let providersColletion = PKResourceManager.shared.database["providers"]
+        do {
+            let result = try providersColletion.findOne("_id" == providerId)
+            if result == nil {
+                completionHandler(nil, PKServerError.notFound)
+                return
+            }
+            
+            var isAgent = false
+            for (i, type) in u.types.enumerated() {
+                if case .agent(provider: providerId, access: .readOnly) = type {
+                    u.types[i] = .agent(provider: providerId, access: .readWrite)
+                    isAgent = true
+                    break
+                } else if case .agent(provider: providerId, access: .readWrite) = type {
+                    isAgent = true
+                    break
+                }
+            }
+            if !isAgent {
+                u.types.append(PKUserType.agent(provider: providerId, access: .readWrite))
+            }
+            
+            let id = user._id!
+            let query = "_id" == id
+            _ = try collection.update(query, to: Document(u), upserting: false, multiple: false)
+        } catch {
+            completionHandler(nil, .database(while: "updating user information."))
+            return
+        }
+        
+        completionHandler(nil, nil)
+    }
+
     // MARK: 型態安全的方法
     static func inspect(user: PKUser?, type: PKUserType?, completionHandler: @escaping (_ response: JSON) -> Void) {
         var payload: [String: JSON] = [ "loggedin": JSON(user != nil) ]
@@ -136,12 +204,12 @@ struct MeActions {
 public func meRouter() -> Router {
     let router = Router()
     
-    router.get(handler: { request, response, next in
+    router.get("", handler: { request, response, next in
         MeActions.inspect(user: request.user, type: request.userType) { json in
             response.send(json: json)
         }
     })
-    router.delete(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "remove your own account."), { request, response, next in
+    router.delete("", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "remove your own account."), { request, response, next in
         let user = request.user!
         MeActions.delete(user: user) { _, error in
             if let error = error {
@@ -150,9 +218,40 @@ public func meRouter() -> Router {
                 return
             }
             
-            _ = response.send(status: .OK)
+            response.send("")
         }
     })
+    router.post("make_admin", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "make yourself admin."), { request, response, next in
+        let user = request.user!
+        MeActions.makeAdmin(user: user) { _, error in
+            if let error = error {
+                response.error = error
+                next()
+                return
+            }
+            
+            response.send("")
+        }
+    })
+    router.post("make_agent", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "make yourself agent."), { req, response, next in
+        guard let body = req.body?.asJSON,
+            let idString = body["providerId"].string,
+            let id = try? ObjectId(idString) else {
+            throw PKServerError.missingBody(fields: [])
+        }
+        
+        let user = req.user!
+        MeActions.makeAgent(user: user, forProvider: id) { _, error in
+            if let error = error {
+                response.error = error
+                next()
+                return
+            }
+            
+            response.send("")
+        }
+    })
+    
     router.all("strategies", allowPartialMatch: true, middleware: strategiesRouter())
     router.all("vehicles", allowPartialMatch: true, middleware: vehiclesRouter())
     router.all("devices", allowPartialMatch: true, middleware: devicesRouter())
@@ -276,7 +375,7 @@ public func vehiclesRouter() -> Router {
         }
     })
     
-    router.get(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "retrieve vehicles list", as: [PKUserType.standard]), { req, res, next in
+    router.post(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "retrieve vehicles list", as: [PKUserType.standard]), { req, res, next in
         guard let body = req.body?.asJSON,
             let plate = body["plate"].string,
             let tag = body["tag"].string else {

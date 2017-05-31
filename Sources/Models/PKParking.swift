@@ -8,12 +8,12 @@ import PKAutoSerialization
 
 public struct PKParking: PKModel {
     public var detailedJSON: JSON {
-        return [
-            "_id": _id!.hexString,
-            "space": space.fetch().0?.simpleJSON ?? Null(),
-            "plate": plate!,
-            "begin": begin
-        ]
+        return JSON([
+            "_id": JSON(stringLiteral: _id!.hexString),
+            "space": space.fetch().0!.simpleJSON,
+            "plate": JSON(stringLiteral: plate!),
+            "begin": JSON(begin.description)
+        ] as [String: JSON])
     }
     
     /// 唯一識別碼

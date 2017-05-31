@@ -8,11 +8,11 @@ import PKAutoSerialization
 
 public struct PKReservation: PKModel {
     public var detailedJSON: JSON {
-        return [
-            "_id": _id!.hexString,
-            "space": space.fetch().0?.simpleJSON ?? [:],
-            "begin": begin
-        ]
+        return JSON([
+            "_id": JSON(_id!.hexString),
+            "space": space.fetch().0!.simpleJSON,
+            "begin": JSON(begin.description)
+        ])
     }
     
     /// 唯一識別碼

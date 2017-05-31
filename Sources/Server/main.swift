@@ -146,6 +146,7 @@ router.get("", handler: { req, res, next in
 })
 
 WebSocket.register(service: SensorService(), onPath: "sensor")
+WebSocket.register(service: AppService(), onPath: "app")
 Kitura.addHTTPServer(onPort: 8080, with: router)
 
 // MARK: Redis
@@ -228,13 +229,13 @@ let authDelegate = AuthDelegate(filePath: identityFilePath, passphrase: identity
 let config = URLSessionConfiguration.default
 let session = URLSession(configuration: config, delegate: authDelegate, delegateQueue: nil)
 
-var lastQueried = Date.distantPast
+var lastQueriedPendingReservation = Date.distantPast
 if #available(OSX 10.12, *) {
     let timer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { _ in
         do {
-            let lowerBound = lastQueried
+            let lowerBound = lastQueriedPendingReservation
             let upperBound = Date().addingTimeInterval(-60.0 * 30.0)
-            lastQueried = upperBound
+            lastQueriedPendingReservation = upperBound
             
             let query = "begin" > lowerBound && "begin" < upperBound
             let reservations = try resourceManager.database["reservations"]

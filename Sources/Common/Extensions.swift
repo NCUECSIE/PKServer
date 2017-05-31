@@ -13,12 +13,13 @@ public extension Data {
 public extension String {
     init?(physicalAddress: Data) {
         if physicalAddress.count != 6 { return nil }
-        
+        var added = 0
         let sequence = physicalAddress.toHexString().characters.reduce([Character](), { (cs: [Character], character: Character) -> [Character] in
             var characters = cs
             
-            if characters.count > 0 && characters.count % 2 == 0 {
+            if characters.count > 0 && (characters.count - added) % 2 == 0 {
                 characters.append(":")
+                added += 1
             }
             characters.append(character)
             return characters

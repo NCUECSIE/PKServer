@@ -9,9 +9,9 @@ import Models
 import Common
 
 internal class SensorActions {
-    static func update(sensor id: ObjectId, networkId nId: Int, metricDistance mDistance: Int, routes: [(destination: Data, through: Data)])  {
+    static func update(physicalAddress: Data, networkId nId: Int, metricDistance mDistance: Int, routes: [(destination: Data, through: Data)])  {
         do {
-            guard let document = try PKResourceManager.shared.database["sensors"].findOne("_id" == id) else {
+            guard let document = try PKResourceManager.shared.database["sensors"].findOne("address" == physicalAddress) else {
                 throw PKServerError.notFound
             }
             guard var sensor = PKSensor.deserialize(from: document) else {
@@ -24,7 +24,7 @@ internal class SensorActions {
             sensor.updated = Date()
             
             let updatedDocument = Document(sensor)
-            try PKResourceManager.shared.database["sensors"].update("_id" == id, to: updatedDocument)
+            try PKResourceManager.shared.database["sensors"].update("address" == physicalAddress, to: updatedDocument)
         } catch let error where error is PKServerError {
             Log.error((error as! PKServerError).localizedDescription)
         } catch let error where error is MongoError {
@@ -66,6 +66,14 @@ public class SensorService: WebSocketService {
         ]
         recognizedConnections[address]?.send(message: payload.rawString()!)
     }
+    public func notifyCancelledReservation(sensorAddress: Data) {
+        let address = String(physicalAddress: sensorAddress)!
+        let payload: JSON = [
+            "destination": address,
+            "type": "cancelledReservation"
+        ]
+        recognizedConnections[address]?.send(message: payload.rawString()!)
+    }
     
     public func received(message: String, from connection: WebSocketConnection) {
         let json = JSON.parse(string: message)
@@ -74,10 +82,8 @@ public class SensorService: WebSocketService {
             
             guard let networkId = json["networkId"].int,
                 let metricDistance = json["metricDistance"].int,
-                let sensorIdStringValue = json["sensorId"].string,
-                let sensorId = try? ObjectId(sensorIdStringValue),
                 let physicalAddressString = json["physicalAddress"].string,
-                let _ = Data(physicalAddress: physicalAddressString),
+                let physicalAddress = Data(physicalAddress: physicalAddressString),
                 let routesJSON = json["routes"].array else {
                     Log.warning("Received bad JSON data from sensor: \(message)")
                     Log.warning("Will disconnect sensor")
@@ -103,7 +109,7 @@ public class SensorService: WebSocketService {
             }
             
             recognizedConnections[physicalAddressString] = connection
-            SensorActions.update(sensor: sensorId, networkId: networkId, metricDistance: metricDistance, routes: routes)
+            SensorActions.update(physicalAddress: physicalAddress, networkId: networkId, metricDistance: metricDistance, routes: routes)
         } else {
             SensorService.lastReceived = .String(message, Date())
             Log.warning("Received string data from sensor: \(message)")
@@ -125,6 +131,15 @@ public class SensorService: WebSocketService {
             let sensorAddress = try! PKResourceManager.shared.database["sensors"].findOne("space.$id" == spaceId).to(PKSensor.self)?.address
             
             self.notifyReservation(sensorAddress: sensorAddress!)
+        }
+        NotificationCenter.default.addObserver(forName: PKNotificationType.spaceFreed.rawValue, object: nil, queue: nil) { [unowned self] notification in
+            let userInfo = notification.userInfo!
+            let spaceId = userInfo["spaceId"] as! ObjectId
+            let sensorAddress = try! PKResourceManager.shared.database["sensors"].findOne("space.$id" == spaceId).to(PKSensor.self)?.address
+            
+            if let _ = userInfo["cancelledReservation"] {
+                self.notifyCancelledReservation(sensorAddress: sensorAddress!)
+            }
         }
     }
     

@@ -22,8 +22,8 @@ public struct Route: PKObjectReflectionSerializable {
     /// 路由
     public static func deserialize(from primitive: Primitive) -> Route? {
         guard let document = primitive.toDocument(requiredKeys: ["destination", "through"]),
-              let destination = document["destination"].to(Data.self),
-              let through = document["throguh"].to(Data.self) else {
+              let destination = document["destination"].to(Binary.self)?.data,
+              let through = document["through"].to(Binary.self)?.data else {
             return nil
         }
         
@@ -34,19 +34,21 @@ public struct Route: PKObjectReflectionSerializable {
 public struct PKSensor: PKModel {
     public var simpleJSON: JSON {
         return [
+            "_id": _id!.hexString,
             "physicalAddress": String(physicalAddress: address) ?? "",
             "spaceId": space._id.hexString,
             "networkId": networkId ?? -1,
-            "updated": updated ?? Date.distantFuture,
+            "updated": (updated ?? Date.distantFuture).description,
             "distance": metricDistance ?? -1
         ]
     }
     public var detailedJSON: JSON {
         return [
+            "_id": _id!.hexString,
             "physicalAddress": String(physicalAddress: address) ?? "",
             "spaceId": space._id.hexString,
             "networkId": networkId ?? -1,
-            "updated": updated ?? Date.distantFuture,
+            "updated": (updated ?? Date.distantFuture).description,
             "distance": metricDistance ?? -1,
             "routes": (routes ?? []).map { (route: Route) -> [String: String] in [
                 "destination": String(physicalAddress: route.destination) ?? "",
@@ -107,7 +109,7 @@ public struct PKSensor: PKModel {
     public static func deserialize(from primitive: Primitive) -> PKSensor? {
         guard let document = primitive.toDocument(requiredKeys: ["_id", "address", "secret", "space", "updated", "networkId", "routes", "metricDistance"]),
               let i = document["_id"].to(ObjectId.self),
-              let a = document["address"].to(Data.self),
+              let a = document["address"].to(Binary.self)?.data,
               let se = document["secret"].to(String.self),
               let s = document["space"].to(PKDbRef<PKSpace>.self),
               let u = Optional<Date>.deserialize(from: document["updated"]!),
@@ -118,8 +120,8 @@ public struct PKSensor: PKModel {
         
         // Optional of arrays are Primitive, and does not go through our system
         var r: [Route]? = nil
-        if document["routes"]! is [Primitive] {
-            let routingPrimitive = document["routes"]! as! [Primitive]
+        if document["routes"]!.toArray() != nil {
+            let routingPrimitive = document["routes"]!.toArray()!
             r = try? routingPrimitive.map { primitive in
                 if let result = Route.deserialize(from: primitive) {
                     return result

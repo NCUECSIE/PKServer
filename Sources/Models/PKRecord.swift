@@ -8,15 +8,15 @@ import PKAutoSerialization
 
 public struct PKRecord: PKModel {
     public var detailedJSON: JSON {
-        return [
-            "_id": _id!.hexString,
-            "space": space.fetch().0 ?? Null(),
-            "plate": plate,
-            "begin": begin,
-            "end": end,
-            "charge": charge,
-            "paid": paid
-        ]
+        return JSON([
+            "_id": JSON(_id!.hexString),
+            "space": space.fetch().0!.simpleJSON,
+            "plate": JSON(plate),
+            "begin": JSON(begin.description),
+            "end": JSON(end.description),
+            "charge": JSON(charge),
+            "paid": JSON(paid)
+        ] as [String: JSON])
     }
     
     /// 唯一識別碼

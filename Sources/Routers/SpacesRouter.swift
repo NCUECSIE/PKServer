@@ -181,7 +181,7 @@ public func spacesRouter() -> Router {
         }
     })
     
-    router.get(handler: { req, res, next in
+    router.get("", handler: { req, res, next in
         guard let gridString = req.queryParameters["grids"] else {
             throw PKServerError.notFound
         }

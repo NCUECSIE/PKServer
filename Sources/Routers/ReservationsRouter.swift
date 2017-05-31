@@ -70,6 +70,14 @@ struct ReservationsActions {
     }
     static func delete(for user: PKUser, id: ObjectId, completionHandler: (_ result: Result<Void>) -> Void) {
         do {
+            guard let reservation = try PKResourceManager.shared.database["reservations"].find("_id" == id).filter({_ in true})[0].to(PKReservation.self),
+            let space = reservation.space.fetch().0 else {
+                completionHandler(.error(PKServerError.deserialization(data: "PKReservation", while: "reporting space unoccupied")))
+                return
+            }
+            let grid = Grid(containing: space.location.latitude, space.location.longitude).description
+            NotificationCenter.default.post(name: PKNotificationType.spaceFreed.rawValue, object: nil, userInfo: ["spaceId": space._id!, "grid": grid.description, "cancelledReservation": true])
+            
             _ = try PKResourceManager.shared.database["reservations"].remove("_id" == id)
             completionHandler(.success())
         } catch {
@@ -81,7 +89,7 @@ struct ReservationsActions {
 public func reservationsRouter() -> Router {
     let router = Router()
     
-    router.get(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "list reservations", as: [.standard]), { req, res, next in
+    router.get("", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "list reservations", as: [.standard]), { req, res, next in
         ReservationsActions.read(of: req.user!) { result in
             switch result {
             case .success(let reservations):
@@ -92,7 +100,7 @@ public func reservationsRouter() -> Router {
             }
         }
     })
-    router.post(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "reserve space in grid", as: [.standard]), { req, res, next in
+    router.post("", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "reserve space in grid", as: [.standard]), { req, res, next in
         let dateFormatter = DateFormatter()
         let enUSPosixLocale = Locale(identifier: "en_US_POSIX")
         dateFormatter.locale = enUSPosixLocale
@@ -125,7 +133,7 @@ public func reservationsRouter() -> Router {
         guard let reservation = try PKResourceManager.shared.database["reservations"].findOne("_id" == id).to(PKReservation.self) else {
             throw PKServerError.database(while: "checking that the reservation belongs to you")
         }
-        if reservation.user._id == req.user!._id! {
+        if reservation.user._id != req.user!._id! {
             throw PKServerError.unauthorized(to: "delete someone else's reservation")
         }
         ReservationsActions.delete(for: req.user!, id: id) { result in
