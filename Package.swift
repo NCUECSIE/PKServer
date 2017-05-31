@@ -22,6 +22,5 @@ let package = Package(
         .Package(url: "https://github.com/NCUECSIE/PKAutoSerialization.git", "1.0.3"),
         .Package(url: "https://github.com/OpenKitten/MongoKitten.git", "4.0.4"),
         .Package(url: "https://github.com/IBM-Swift/Kitura-redis.git", majorVersion: 1, minor: 7),
-        .Package(url: "https://github.com/NCUECSIE/Tori-APNS.git", majorVersion: 0, minor: 5)
     ]
 )

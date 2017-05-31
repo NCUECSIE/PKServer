@@ -8,7 +8,6 @@ import WebSocketServices
 import Foundation
 import Models
 import Security
-import ToriAPNS
 
 #if os(Linux)
     import Glibc
