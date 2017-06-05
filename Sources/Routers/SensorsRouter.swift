@@ -29,25 +29,100 @@ struct SensorsActions {
             }
             
             let userId = user._id!
-            let spaceId = try PKResourceManager.shared.database["sensors"].findOne("_id" == sensorId).to(PKSensor.self)?.space._id
-            print("Print sensorId: ")
-            print(sensorId)
-            
-            //added by sugarPeter
-            guard let space = try PKResourceManager.shared.database["spaces"].findOne("_id" == spaceId).to(PKSpace.self) else {
-                print("Debugging findOne: ")
-                print(spaceId)
-                completionHandler(.database(while: "findone "))
+            guard let spaceId = try PKResourceManager.shared.database["sensors"].findOne("_id" == sensorId).to(PKSensor.self)?.space._id else {
+                Log.error("space does not exist")
                 return
             }
             
+            guard let space = try PKResourceManager.shared.database["spaces"].findOne("_id" == spaceId).to(PKSpace.self) else {
+                completionHandler(.database(while: "findone failed"))
+                return
+            }
             
-            NotificationCenter.default.post(name: PKNotificationType.spaceParked.rawValue, object: nil, userInfo: ["spaceId": spaceId!, "grid": Grid(containing: space.location.latitude, space.location.longitude).description])
+            if let _ = try PKResourceManager.shared.database["parking"].findOne("space.$id" == spaceId).to(PKParking.self) {
+                didStopParking(on: sensorId, completionHandler: { _ in })
+            }
             
             let plate = user.vehicles.first { $0.tag == tag }!.plate
-            try PKResourceManager.shared.database["parking"].insert(Document(PKParking(spaceId: spaceId!, userId: userId, plate: plate, begin: Date())))
+            try PKResourceManager.shared.database["parking"].insert(Document(PKParking(spaceId: spaceId, userId: userId, plate: plate, begin: Date())))
             
+            NotificationCenter.default.post(name: PKNotificationType.spaceParked.rawValue, object: nil, userInfo: ["spaceId": spaceId, "grid": Grid(containing: space.location.latitude, space.location.longitude).description])
             completionHandler(nil)
+            
+            // 處理特殊狀況
+            if var reservation = try PKResourceManager.shared.database["reservations"].findOne("space.$id" == spaceId).to(PKReservation.self) {
+                let grid = Grid(containing: space.location.latitude, space.location.longitude)
+                let query: Query = [
+                    "location.coordinates.0": [
+                        "$gte": grid.consecutiveGrids[0].lowerLeft.longitude,
+                        "$lt": grid.consecutiveGrids[0].upperRight.longitude.nextDown
+                    ],
+                    "location.coordinates.1": [
+                        "$gte": grid.consecutiveGrids[0].lowerLeft.latitude,
+                        "$lt": grid.consecutiveGrids[0].upperRight.latitude.nextDown
+                    ],
+                    "deleted": false
+                ]
+                
+                // 1. 此車位已經被預約了！
+                if reservation.user._id == userId {
+                    // 1.1 預約屬於同一個人的！
+                    _ = try PKResourceManager.shared.database["reservations"].findAndRemove("_id" == reservation._id!)
+                } else {
+                    // 1.2 預約屬於不同人的 QQ
+                    // 1.2.1 改預約位置
+                    
+                    let spacesCollection = PKResourceManager.shared.database["spaces"]
+                    let documents = try spacesCollection.find(query)
+                    let spacesIds = try documents.flatMap { $0.to(PKSpace.self)?._id }.filter { _ in true }
+                    
+                    let parkingCollection = PKResourceManager.shared.database["parking"]
+                    let reservationsCollection = PKResourceManager.shared.database["reservations"]
+                    
+                    let parked = try parkingCollection
+                        .find([ "space.$id": [ "$in": spacesIds ] ])
+                        .flatMap { $0.to(PKParking.self)?.space._id }
+                        .filter { _ in true }
+                    let reserved = try reservationsCollection
+                        .find([ "space.$id": [ "$in": spacesIds ] ])
+                        .flatMap { $0.to(PKReservation.self)?.space._id }
+                        .filter { _ in true }
+                    let occupied = parked + reserved
+                    
+                    let free = spacesIds.filter { !occupied.contains($0) }
+                    
+                    guard let user = reservation.user.fetch().0 else {
+                        Log.error("Cannot cancel existing user reservation to make room for existing parking")
+                        return
+                    }
+                    
+                    if free.isEmpty {
+                        // 在霸佔者中產生 10 元罰金
+                        // 在被霸佔者中產生 -10 元補償
+                        
+                        // 沒有可以出租的，通知預約被取消
+                        NotificationCenter.default.post(name: PKNotificationType.userReservationCancelled.rawValue, object: nil, userInfo: [
+                            "user": user,
+                            "reservation": reservation
+                        ])
+                        // 刪除預約
+                        _ = try PKResourceManager.shared.database["reservations"].findAndRemove("space.$id" == spaceId)
+                    } else {
+                        let newlyAppointed = free[0]
+                        // 通知出租（主要是要通知 Sensor 以及 Redis）
+                        NotificationCenter.default.post(name: PKNotificationType.spaceReserved.rawValue, object: nil, userInfo: ["spaceId": newlyAppointed, "grid": grid.description])
+                        // 修改預約
+                        reservation.space = PKDbRef(id: newlyAppointed, collectionName: "spaces")
+                        // 通知預約被改
+                        NotificationCenter.default.post(name: PKNotificationType.userReservationChanged.rawValue, object: nil, userInfo: [
+                            "user": user,
+                            "reservation": reservation
+                        ])
+                        // 寫回資料庫
+                        _ = try PKResourceManager.shared.database["reservations"].findAndUpdate("_id" == reservation._id!, with: Document(reservation))
+                    }
+                }
+            }
         } catch {
             completionHandler(.database(while: "retrieving belonging user of the vehicle"))
         }
@@ -57,7 +132,6 @@ struct SensorsActions {
             let space = (try PKResourceManager.shared.database["sensors"].findOne("_id" == sensorId).to(PKSensor.self)?.space.fetch().0)!
             let spaceId = space._id!
             NotificationCenter.default.post(name: PKNotificationType.spaceFreed.rawValue, object: nil, userInfo: ["spaceId": spaceId, "grid": Grid(containing: space.location.latitude, space.location.longitude).description])
-            
             
             guard let parking = try PKResourceManager.shared.database["parking"].findOne("space.$id" == spaceId).to(PKParking.self) else {
                 completionHandler(PKServerError.database(while: "find one specific space.id during stop parking"))

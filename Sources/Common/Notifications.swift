@@ -19,4 +19,14 @@ public enum PKNotificationType: Notification.Name {
     case spaceReserved = "reserved"
     case spaceParked = "parked"
     case spaceFreed = "freed"
+    /**
+     在 userInfo 中必須有：
+     [ "user": PKUser, reservation: PKReservation ]
+     */
+    case userReservationChanged = "userReservationChanged"
+    /**
+     在 userInfo 中必須有：
+     [ "user": PKUser, reservation: PKReservation ]
+     */
+    case userReservationCancelled = "userReservationCancelled"
 }

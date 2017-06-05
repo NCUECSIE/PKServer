@@ -14,7 +14,7 @@ import Utilities
 struct RecordsActions {
     static func read(of user: PKUser, completionHandler: (Result<JSON>) -> Void ) {
         do {
-            let records = try PKResourceManager.shared.database["records"].find("user.$id" == user._id!).flatMap { $0.to(PKRecord.self) }
+            let records = try PKResourceManager.shared.database["records"].find("user.$id" == user._id!, sortedBy: [ "begin": .descending ]).flatMap { $0.to(PKRecord.self) }
             completionHandler(.success(JSON(records.map {$0.detailedJSON})))
         } catch {
             completionHandler(.error(PKServerError.database(while: "")))

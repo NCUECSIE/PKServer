@@ -20,7 +20,7 @@ public struct PKReservation: PKModel {
     public let _id: ObjectId?
     
     // MARK: 資料
-    public let space: PKDbRef<PKSpace>
+    public var space: PKDbRef<PKSpace>
     public let user: PKDbRef<PKUser>
     
     public let begin: Date

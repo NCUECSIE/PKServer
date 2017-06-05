@@ -9,6 +9,8 @@ import Foundation
 import Models
 import Security
 import Dispatch
+import SwiftyJSON
+import Utilities
 
 #if os(Linux)
     import Glibc
@@ -92,6 +94,12 @@ router.all("parking", allowPartialMatch: true, middleware: parkingRouter())
 router.all("records", allowPartialMatch: true, middleware: recordsRouter())
 router.all("invoices", allowPartialMatch: true, middleware: invoicesRouter())
 
+router.post("reset") { req, res, next in
+    PKResourceManager.shared.redis.flushdb { _ in }
+    try! PKResourceManager.shared.database["parking"].drop()
+    try! PKResourceManager.shared.database["reservations"].drop()
+    res.send("")
+}
 router.error() {
     request, response, next in
     if response.error as? PKServerError == nil {
@@ -176,6 +184,21 @@ class AuthDelegate: NSObject, URLSessionDelegate {
     var privateCredential: URLCredential!
     let bundleId: String
     
+    lazy var session: URLSession = {
+        return URLSession(configuration: URLSessionConfiguration.default, delegate: self, delegateQueue: nil)
+    }()
+    
+    func notify(device: String, message: String) {
+        let url = URL(string: "https://api.development.push.apple.com/3/device/\(device)")!
+        let payload = JSON([ "aps": JSON([ "alert": message ]) ]).rawString()!
+        
+        var request = URLRequest(url: url)
+        request.httpBody = payload.data(using: .utf8)
+        request.addValue(bundleId, forHTTPHeaderField: "apns-topic")
+        request.httpMethod = "POST"
+        
+        session.dataTask(with: request, completionHandler: { _ in }).resume()
+    }
     public init(filePath: String, passphrase pass: String, bundleId id: String) {
         bundleId = id
         privateCredential = nil
@@ -225,23 +248,18 @@ class AuthDelegate: NSObject, URLSessionDelegate {
     }
 }
 
-let authDelegate = AuthDelegate(filePath: identityFilePath, passphrase: identityPasspharase, bundleId: bundleId)
-
-let config = URLSessionConfiguration.default
-let session = URLSession(configuration: config, delegate: authDelegate, delegateQueue: nil)
+let notify = AuthDelegate(filePath: identityFilePath, passphrase: identityPasspharase, bundleId: bundleId)
 
 var lastQueriedPendingReservation = Date.distantPast
-
 let timerSource = DispatchSource.makeTimerSource()
 timerSource.setEventHandler { () -> Void in
     do {
+        // 預約提醒
         let lowerBound = lastQueriedPendingReservation
         let upperBound = Date().addingTimeInterval(60.0 * 30.0)
         lastQueriedPendingReservation = upperBound
         
         let query = "begin" > lowerBound && "begin" < upperBound
-        
-        print("Looking for reservation in the range: \(lowerBound)...\(upperBound)")
         
         let reservations = try resourceManager.database["reservations"]
             .find(query)
@@ -253,22 +271,77 @@ timerSource.setEventHandler { () -> Void in
             let user = userOptional!
             
             for device in user.deviceIds {
-                print("Sent Notification!")
-                
-                let url = URL(string: "https://api.development.push.apple.com/3/device/\(device)")!
-                let payload = "{ \"aps\": { \"alert\": \"預約在 30 分鐘內就要開始了，若要取消請趁早！\"}}"
-                
-                var request = URLRequest(url: url)
-                request.httpBody = payload.data(using: .utf8)
-                request.addValue(bundleId, forHTTPHeaderField: "apns-topic")
-                request.httpMethod = "POST"
-                
-                session.dataTask(with: request, completionHandler: { _ in }).resume()
+                notify.notify(device: device, message: "預約在 30 分鐘內就要開始了，若要取消請趁早！")
             }
         }
+        
+        // 預約到期
+        let expiredReservations = try resourceManager.database["reservations"]
+            .find("begin" < Date())
+            .flatMap { $0.to(PKReservation.self) }
+            .filter { _ in true }
+        
+        let expiredIds = expiredReservations.map { $0._id! }
+        let expiredReservationsAndUsers = expiredReservations.map { ($0.user.fetch().0, $0) }
+        
+        _ = try resourceManager.database["reservations"].remove([ "_id": [ "$in": expiredIds ] ])
+        for (userOptional, reservation) in expiredReservationsAndUsers where userOptional != nil {
+            let user = userOptional!
+            guard let space = reservation.space.fetch().0 else {
+                Log.error("Cannot fetch space when fining expired reservation")
+                continue
+            }
+            let spanCount = Int(ceil(3600 / space.fee.unitTime))
+            let record = PKRecord(spaceId: reservation.space._id, userId: user._id!, plate: "罰金", begin: Date().addingTimeInterval(-3600.0), end: Date().addingTimeInterval(-1), charge: Double(spanCount) * space.fee.charge)
+            try resourceManager.database["records"].insert(Document(record))
+            
+            for device in user.deviceIds {
+                notify.notify(device: device, message: "您的預約已經到期，我們已為你自動取消。作為懲罰，我們已經產生一筆罰金。")
+                
+                let grid = Grid(containing: space.location.latitude, space.location.longitude)
+                NotificationCenter.default.post(name: PKNotificationType.spaceFreed.rawValue, object: nil, userInfo: [
+                    "spaceId": space._id!, "grid": grid.description, "cancelledReservation": true
+                ])
+            }
+        }
+        
     } catch {}
 }
 timerSource.scheduleRepeating(deadline: DispatchTime.now(), interval: DispatchTimeInterval.seconds(10))
 timerSource.resume()
+
+// Notification -> Push Notification
+NotificationCenter.default.addObserver(forName: PKNotificationType.spaceParked.rawValue, object: nil, queue: nil) { notification in
+    let userInfo = notification.userInfo!
+    let spaceId = userInfo["spaceId"] as! ObjectId
+    
+    guard let parkingWithoutError = try? resourceManager.database["parking"].findOne("space.$id" == spaceId),
+          let parking = parkingWithoutError.to(PKParking.self),
+          let user = parking.user.fetch().0 else {
+        return
+    }
+    
+    for deviceId in user.deviceIds {
+        notify.notify(device: deviceId, message: "您已經開始停車。")
+    }
+}
+NotificationCenter.default.addObserver(forName: PKNotificationType.userReservationChanged.rawValue, object: nil, queue: nil) { notification in
+    let userInfo = notification.userInfo!
+    let user = userInfo["user"] as! PKUser
+    let reservation = userInfo["reservation"] as! PKReservation
+
+    for device in user.deviceIds {
+        notify.notify(device: device, message: "您的預約車位位置已經被修改，請查看。")
+    }
+}
+NotificationCenter.default.addObserver(forName: PKNotificationType.userReservationCancelled.rawValue, object: nil, queue: nil) { notification in
+    let userInfo = notification.userInfo!
+    let user = userInfo["user"] as! PKUser
+    let reservation = userInfo["reservation"] as! PKReservation
+    
+    for device in user.deviceIds {
+        notify.notify(device: device, message: "您的預約車位已經被取消，我們將於下期帳單補償。")
+    }
+}
 
 Kitura.run()
