@@ -30,7 +30,18 @@ struct SensorsActions {
             
             let userId = user._id!
             let spaceId = try PKResourceManager.shared.database["sensors"].findOne("_id" == sensorId).to(PKSensor.self)?.space._id
-            let space = try PKResourceManager.shared.database["spaces"].findOne("_id" == spaceId).to(PKSpace.self)!
+            print("Print sensorId: ")
+            print(sensorId)
+            
+            //added by sugarPeter
+            guard let space = try PKResourceManager.shared.database["spaces"].findOne("_id" == spaceId).to(PKSpace.self) else {
+                print("Debugging findOne: ")
+                print(spaceId)
+                completionHandler(.database(while: "findone "))
+                return
+            }
+            
+            
             NotificationCenter.default.post(name: PKNotificationType.spaceParked.rawValue, object: nil, userInfo: ["spaceId": spaceId!, "grid": Grid(containing: space.location.latitude, space.location.longitude).description])
             
             let plate = user.vehicles.first { $0.tag == tag }!.plate
@@ -47,7 +58,12 @@ struct SensorsActions {
             let spaceId = space._id!
             NotificationCenter.default.post(name: PKNotificationType.spaceFreed.rawValue, object: nil, userInfo: ["spaceId": spaceId, "grid": Grid(containing: space.location.latitude, space.location.longitude).description])
             
-            let parking = try PKResourceManager.shared.database["parking"].findOne("space.$id" == spaceId).to(PKParking.self)!
+            
+            guard let parking = try PKResourceManager.shared.database["parking"].findOne("space.$id" == spaceId).to(PKParking.self) else {
+                completionHandler(PKServerError.database(while: "find one specific space.id during stop parking"))
+                return
+            }
+            
             let end = Date()
             
             let charge = end.timeIntervalSince(parking.begin)
@@ -67,8 +83,15 @@ struct SensorsActions {
     static func create(address: Data, space: ObjectId, completionHandler: (_ secret: String?, _ error: PKServerError?) -> Void) {
         // check if space is already occupied?
         do {
+            let stringAddress: String = String(physicalAddress: address) ?? ""
             guard try PKResourceManager.shared.database["sensors"].findOne("space.$id" == space) == nil else {
                 completionHandler(nil, PKServerError.unknown(description: "a sensor is already set to report status of the specified space"))
+                return
+            }
+            
+            //add by sugarPeter886
+            guard try PKResourceManager.shared.database["sensors"].findOne("address" == stringAddress) == nil else {
+                completionHandler(nil, PKServerError.database(while: "looking for duplicate physical address"))
                 return
             }
         } catch {

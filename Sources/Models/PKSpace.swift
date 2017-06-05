@@ -34,16 +34,18 @@ public struct PKSpace: PKModel {
         ]
     }
     public var detailedJSON: JSON {
-        return [
-            "_id": _id!.hexString,
-            "providerId": provider._id.hexString,
+        let fetchedProvider = provider.fetch().0
+        
+        return JSON([
+            "_id": JSON(_id!.hexString),
+            "provider": fetchedProvider == nil ? JSON(nilLiteral: ()) : fetchedProvider!.simpleJSON,
             "location": [ "longitude": location.longitude,
-                          "latitude": location.latitude ],
-            "markings": markings,
+                          "latitude": location.latitude ] as JSON,
+            "markings": JSON(markings),
             "fee": [ "charge": fee.charge,
-                     "unitTime": fee.unitTime ],
-            "parked": parked
-        ]
+                     "unitTime": fee.unitTime ] as JSON,
+            "parked": JSON(parked)
+        ] as [String: JSON])
     }
 
     private var parked: Bool {
@@ -63,6 +65,9 @@ public struct PKSpace: PKModel {
         if case .timedOut = r {
             Log.error("DispatchGroup timed out while waiting for response.")
         }
+        
+        print("Redis got \(p) for \(_id!.hexString)")
+        
         return p
     }
     

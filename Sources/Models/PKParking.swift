@@ -8,11 +8,12 @@ import PKAutoSerialization
 
 public struct PKParking: PKModel {
     public var detailedJSON: JSON {
+        let formatter = ISO8601DateFormatter()
         return JSON([
             "_id": JSON(stringLiteral: _id!.hexString),
-            "space": space.fetch().0!.simpleJSON,
+            "space": space.fetch().0!.detailedJSON,
             "plate": JSON(stringLiteral: plate!),
-            "begin": JSON(begin.description)
+            "begin": JSON(formatter.string(from: begin))
         ] as [String: JSON])
     }
     

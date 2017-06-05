@@ -46,11 +46,11 @@ struct ReservationsActions {
             let reservationsCollection = PKResourceManager.shared.database["reservations"]
             
             let parked = try parkingCollection
-                .find([ "space": [ "$in": spacesIds ] ])
+                .find([ "space.$id": [ "$in": spacesIds ] ])
                 .flatMap { $0.to(PKParking.self)?.space._id }
                 .filter { _ in true }
             let reserved = try reservationsCollection
-                .find([ "space": [ "$in": spacesIds ] ])
+                .find([ "space.$id": [ "$in": spacesIds ] ])
                 .flatMap { $0.to(PKReservation.self)?.space._id }
                 .filter { _ in true }
             let occupied = parked + reserved
@@ -60,6 +60,7 @@ struct ReservationsActions {
             if free.isEmpty { // 沒有可以出租的
                 completionHandler(.error(PKServerError.unknown(description: "No empty spaces for reservation")))
             } else { // 出租
+                // print(free[0])
                 NotificationCenter.default.post(name: PKNotificationType.spaceReserved.rawValue, object: nil, userInfo: ["spaceId": free[0], "grid": grid.description])
                 try reservationsCollection.insert(Document(PKReservation(spaceId: free[0], userId: user._id!, begin: time)))
                 completionHandler(.success(free[0].hexString))
@@ -101,10 +102,7 @@ public func reservationsRouter() -> Router {
         }
     })
     router.post("", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "reserve space in grid", as: [.standard]), { req, res, next in
-        let dateFormatter = DateFormatter()
-        let enUSPosixLocale = Locale(identifier: "en_US_POSIX")
-        dateFormatter.locale = enUSPosixLocale
-        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
+        let dateFormatter = ISO8601DateFormatter()
         
         guard let body = req.body?.asJSON,
             let timeString = body["time"].string,
@@ -136,6 +134,7 @@ public func reservationsRouter() -> Router {
         if reservation.user._id != req.user!._id! {
             throw PKServerError.unauthorized(to: "delete someone else's reservation")
         }
+        
         ReservationsActions.delete(for: req.user!, id: id) { result in
             switch result {
             case .success(_):

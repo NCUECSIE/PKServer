@@ -8,12 +8,13 @@ import PKAutoSerialization
 
 public struct PKRecord: PKModel {
     public var detailedJSON: JSON {
+        let formatter = ISO8601DateFormatter()
         return JSON([
             "_id": JSON(_id!.hexString),
             "space": space.fetch().0!.simpleJSON,
             "plate": JSON(plate),
-            "begin": JSON(begin.description),
-            "end": JSON(end.description),
+            "begin": JSON(formatter.string(from: begin)),
+            "end": JSON(formatter.string(from: end)),
             "charge": JSON(charge),
             "paid": JSON(paid)
         ] as [String: JSON])

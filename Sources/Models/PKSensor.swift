@@ -50,6 +50,7 @@ public struct PKSensor: PKModel {
             "networkId": networkId ?? -1,
             "updated": (updated ?? Date.distantFuture).description,
             "distance": metricDistance ?? -1,
+            "secret": secret,
             "routes": (routes ?? []).map { (route: Route) -> [String: String] in [
                 "destination": String(physicalAddress: route.destination) ?? "",
                 "through": String(physicalAddress: route.through) ?? "",

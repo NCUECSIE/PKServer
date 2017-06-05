@@ -8,10 +8,11 @@ import PKAutoSerialization
 
 public struct PKReservation: PKModel {
     public var detailedJSON: JSON {
+        let formatter = ISO8601DateFormatter()
         return JSON([
             "_id": JSON(_id!.hexString),
-            "space": space.fetch().0!.simpleJSON,
-            "begin": JSON(begin.description)
+            "space": space.fetch().0!.detailedJSON,
+            "begin": JSON(formatter.string(from: begin))
         ])
     }
     

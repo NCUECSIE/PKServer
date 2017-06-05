@@ -8,6 +8,7 @@ import WebSocketServices
 import Foundation
 import Models
 import Security
+import Dispatch
 
 #if os(Linux)
     import Glibc
@@ -230,40 +231,44 @@ let config = URLSessionConfiguration.default
 let session = URLSession(configuration: config, delegate: authDelegate, delegateQueue: nil)
 
 var lastQueriedPendingReservation = Date.distantPast
-if #available(OSX 10.12, *) {
-    let timer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { _ in
-        do {
-            let lowerBound = lastQueriedPendingReservation
-            let upperBound = Date().addingTimeInterval(-60.0 * 30.0)
-            lastQueriedPendingReservation = upperBound
+
+let timerSource = DispatchSource.makeTimerSource()
+timerSource.setEventHandler { () -> Void in
+    do {
+        let lowerBound = lastQueriedPendingReservation
+        let upperBound = Date().addingTimeInterval(60.0 * 30.0)
+        lastQueriedPendingReservation = upperBound
+        
+        let query = "begin" > lowerBound && "begin" < upperBound
+        
+        print("Looking for reservation in the range: \(lowerBound)...\(upperBound)")
+        
+        let reservations = try resourceManager.database["reservations"]
+            .find(query)
+            .flatMap { $0.to(PKReservation.self) }
+            .filter { _ in true }
+            .map { ($0.user.fetch().0, $0) }
+        
+        for (userOptional, reservation) in reservations where userOptional != nil {
+            let user = userOptional!
             
-            let query = "begin" > lowerBound && "begin" < upperBound
-            let reservations = try resourceManager.database["reservations"]
-                .find(query)
-                .flatMap { $0.to(PKReservation.self) }
-                .filter { _ in true }
-                .map { ($0.user.fetch().0, $0) }
-            
-            for (userOptional, reservation) in reservations where userOptional != nil {
-                let user = userOptional!
+            for device in user.deviceIds {
+                print("Sent Notification!")
                 
-                for device in user.deviceIds {
-                    let url = URL(string: "https://api.development.push.apple.com/3/device/\(device)")!
-                    let payload = "{ \"aps\": { \"alert\": \"hello\"}}"
-                    
-                    
-                    var request = URLRequest(url: url)
-                    request.httpBody = payload.data(using: .utf8)
-                    request.addValue(bundleId, forHTTPHeaderField: "apns-topic")
-                    request.httpMethod = "POST"
-                    
-                    session.dataTask(with: request, completionHandler: { _ in }).resume()
-                }
+                let url = URL(string: "https://api.development.push.apple.com/3/device/\(device)")!
+                let payload = "{ \"aps\": { \"alert\": \"預約在 30 分鐘內就要開始了，若要取消請趁早！\"}}"
+                
+                var request = URLRequest(url: url)
+                request.httpBody = payload.data(using: .utf8)
+                request.addValue(bundleId, forHTTPHeaderField: "apns-topic")
+                request.httpMethod = "POST"
+                
+                session.dataTask(with: request, completionHandler: { _ in }).resume()
             }
-        } catch {}
-    }
-} else {
-    Log.warning("Timer not set!")
+        }
+    } catch {}
 }
+timerSource.scheduleRepeating(deadline: DispatchTime.now(), interval: DispatchTimeInterval.seconds(10))
+timerSource.resume()
 
 Kitura.run()

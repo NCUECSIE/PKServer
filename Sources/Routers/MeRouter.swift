@@ -399,8 +399,10 @@ internal struct DevicesActions {
     static func create(device: String, in user: PKUser, completionHandler: (_ result: Result<Void>) -> Void) {
         do {
             var u = user
-            u.deviceIds.append(device)
-            _ = try PKResourceManager.shared.database["users"].findAndUpdate("_id" == u._id!, with: Document(u))
+            if u.deviceIds.index(of: device) == nil {
+                u.deviceIds.append(device)
+                _ = try PKResourceManager.shared.database["users"].findAndUpdate("_id" == u._id!, with: Document(u))
+            }
             completionHandler(.success())
         } catch {
             completionHandler(.error(.database(while: "updating database")))
@@ -410,7 +412,7 @@ internal struct DevicesActions {
 public func devicesRouter() -> Router {
     let router = Router()
     
-    router.get(handler: AuthenticationMiddleware.mustBeAuthenticated(to: "retrieve vehicles list", as: [PKUserType.standard]), { req, res, next in
+    router.post("", handler: AuthenticationMiddleware.mustBeAuthenticated(to: "add device", as: [PKUserType.standard]), { req, res, next in
         guard let body = req.body?.asJSON,
             let device = body["deviceId"].string else {
                 throw PKServerError.deserialization(data: "String", while: "reading deviceId")
